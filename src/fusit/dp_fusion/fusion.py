@@ -141,6 +141,15 @@ def dp_fusion_groups_incremental(
 
     Supports multi-group privacy where each group can have different β thresholds.
 
+    Distributions are softmaxed in float32 even when the model runs in fp16, because the
+    divergence is measured on them and at these scales fp16 is mostly noise. On a 150k-token
+    vocabulary with Qwen2.5-0.5B, one real decoding step measured D↔(p_priv‖p_pub) = 0.0477
+    in fp16 against 0.0084 in fp32 — a 5.7x overestimate — and the fp16 curve came out
+    non-monotone in λ with negative values, which breaks the precondition `find_lambda`'s
+    bisection relies on (Theorem 3). Since these same divergences are what the ε accounting
+    consumes, measuring them in fp16 would put the headline privacy number at the mercy of
+    rounding. Weights stay fp16; this is one vocab-sized cast per group per step.
+
     Args:
         token_ids_groups: Dict mapping group names to token ID tensors.
                          Must include "PUBLIC" key for the redacted version.
@@ -204,12 +213,12 @@ def dp_fusion_groups_incremental(
     last_logits = outputs.logits[:, input_batch.size(1) - 1, :]
     group_logits = {g: last_logits[i] for i, g in enumerate(group_order)}
 
-    pub_scaled = group_logits["PUBLIC"] / temperature
+    pub_scaled = group_logits["PUBLIC"].float() / temperature
     p_pub = F.softmax(pub_scaled, dim=-1)
 
     p_priv_dict = {}
     for pg in private_groups:
-        priv_scaled = group_logits[pg] / temperature
+        priv_scaled = group_logits[pg].float() / temperature
         p_priv_dict[pg] = F.softmax(priv_scaled, dim=-1)
 
     # DP-Fusion: find lambdas and form fused distribution
@@ -250,12 +259,12 @@ def dp_fusion_groups_incremental(
         last_logits = outputs.logits[:, -1, :]
         group_logits = {g: last_logits[i] for i, g in enumerate(group_order)}
 
-        pub_scaled = group_logits["PUBLIC"] / temperature
+        pub_scaled = group_logits["PUBLIC"].float() / temperature
         p_pub = F.softmax(pub_scaled, dim=-1)
 
         p_priv_dict = {}
         for pg in private_groups:
-            priv_scaled = group_logits[pg] / temperature
+            priv_scaled = group_logits[pg].float() / temperature
             p_priv_dict[pg] = F.softmax(priv_scaled, dim=-1)
 
         lambdas = {}
