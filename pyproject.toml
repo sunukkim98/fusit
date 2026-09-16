@@ -18,6 +18,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# fusit.trace's NER backends. Both are imported lazily, so the package installs and the
+# cot/att signal sources run without either; only fusit.trace.ner needs them.
+#   spacy      -> the default backend. Also needs a model:
+#                   python -m spacy download en_core_web_trf
+#   presidio   -> the tagger DP-Fusion's appendix A.16 selects (dslim/bert-base-NER).
+#                Presidio tokenizes with spaCy, so it needs a model too:
+#                   python -m spacy download en_core_web_sm
+# spaCy models ship as URLs rather than PyPI names, which is why they are documented here
+# instead of listed; fusit.trace.ner raises with these commands when one is missing.
+trace = [
+    "spacy>=3.4.4,<4.0.0",
+]
+trace-presidio = [
+    "fusit[trace]",
+    "presidio-analyzer[transformers]>=2.2.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
