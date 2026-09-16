@@ -10,12 +10,14 @@ formal (epsilon, delta) guarantee.
 
 Modules:
     core       DPFusion, the user-facing wrapper
+    contexts   length-matched public/per-group token sequences
     fusion     the mechanism: divergence, lambda search, the decoding loop
     epsilon    turns per-step divergences into an (epsilon, delta) guarantee
     prompting  the shared private/public prompt template
     tagger     Document Privacy API client for automatic phrase extraction
 """
 
+from fusit.dp_fusion.contexts import build_aligned_tokens, build_contexts, locate_document
 from fusit.dp_fusion.core import DPFusion, generate_dp_text
 from fusit.dp_fusion.epsilon import compute_dp_epsilon, compute_epsilon_single_group
 from fusit.dp_fusion.fusion import (
@@ -31,6 +33,8 @@ __all__ = [
     "DEFAULT_BETA_DICT",
     "DPFusion",
     "Tagger",
+    "build_aligned_tokens",
+    "build_contexts",
     "compute_dp_epsilon",
     "compute_epsilon_single_group",
     "compute_renyi_divergence_clipped_symmetric",
@@ -38,4 +42,5 @@ __all__ = [
     "find_lambda",
     "format_prompt_new_template",
     "generate_dp_text",
+    "locate_document",
 ]
