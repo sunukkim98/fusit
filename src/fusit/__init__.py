@@ -31,6 +31,15 @@ Quick Start:
     ...     beta=0.1
     ... )
     >>> print(f"Privacy: epsilon={eps['empirical']:.2f} at delta=1e-5")
+
+Layout:
+    fusit.dp_fusion   the DP-Fusion mechanism, accounting, prompting and tagger
+    fusit.trace       attribute-inference attack/evaluation (placeholder, see its docstring)
+    fusit.dataset     the corpora vendored under dataset/
+    fusit.utils       helpers shared by the above
+
+Everything in the Quick Start is re-exported at the top level, so `from fusit import X`
+keeps working regardless of which subpackage X lives in.
 """
 
 try:
@@ -44,19 +53,21 @@ except ImportError as e:
     ) from e
 
 # Core classes and functions
-from fusit.core import DPFusion, generate_dp_text
-from fusit.tagger import Tagger, find_phrase_offsets
-from fusit.epsilon import compute_epsilon_single_group, compute_dp_epsilon
+from fusit.dp_fusion import DPFusion, Tagger, generate_dp_text
+from fusit.dp_fusion.epsilon import compute_epsilon_single_group, compute_dp_epsilon
 from fusit._version import __version__
 
 # Utility functions (advanced usage)
-from fusit.utils import (
+from fusit.dp_fusion.fusion import (
     compute_renyi_divergence_clipped_symmetric,
     find_lambda,
-    replace_sequences_with_placeholder_fast,
     dp_fusion_groups_incremental,
-    format_prompt_new_template,
     DEFAULT_BETA_DICT,
+)
+from fusit.dp_fusion.prompting import format_prompt_new_template
+from fusit.utils import (
+    find_phrase_offsets,
+    replace_sequences_with_placeholder_fast,
     ENTITY_TYPES,
     PLACEHOLDER_TOKEN,
 )

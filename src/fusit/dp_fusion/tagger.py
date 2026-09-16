@@ -3,34 +3,13 @@ Private phrase extraction using the Document Privacy API.
 
 This module provides the Tagger class for automatically identifying
 sensitive/private phrases in documents using an external API.
+`find_phrase_offsets`, which locates those phrases in the source text, is a plain string
+helper and lives in `fusit.utils`.
 """
 
 from typing import List
 
 import requests
-
-
-def find_phrase_offsets(text: str, phrases: List[str]) -> List[List[int]]:
-    """
-    Find all occurrences of phrases in text and return [start, end] offsets.
-
-    Args:
-        text: The full text to search in
-        phrases: List of phrases to find
-
-    Returns:
-        List of [start_char, end_char] offsets for all phrase occurrences
-    """
-    offsets = []
-    for phrase in phrases:
-        start = 0
-        while True:
-            idx = text.find(phrase, start)
-            if idx == -1:
-                break
-            offsets.append([idx, idx + len(phrase)])
-            start = idx + 1
-    return offsets
 
 
 class Tagger:

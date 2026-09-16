@@ -21,12 +21,10 @@ from typing import Dict, List, Optional, Union
 
 import torch
 
-from fusit.tagger import Tagger, find_phrase_offsets
-from fusit.utils import (
-    dp_fusion_groups_incremental,
-    format_prompt_new_template,
-    replace_sequences_with_placeholder_fast,
-)
+from fusit.dp_fusion.fusion import dp_fusion_groups_incremental
+from fusit.dp_fusion.prompting import format_prompt_new_template
+from fusit.dp_fusion.tagger import Tagger
+from fusit.utils import find_phrase_offsets, replace_sequences_with_placeholder_fast
 
 
 class DPFusion:
