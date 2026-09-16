@@ -27,13 +27,19 @@ import os
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Dict, List, Optional, Type
+from typing import ClassVar, Dict, List, Optional, Sequence, Type
 
 __all__ = [
+    "ATTACK_ENTITY_TYPES",
     "DATASET_DIR",
     "DATASETS",
     "Dataset",
     "Item",
+    "PRIVATE_IDENTIFIER_TYPES",
+    "Span",
+    "TAB_ENTITY_TYPES",
+    "TabDocument",
+    "TabECHR",
     "SynthPAI",
     "Synthetic",
     "SyntheticItem",
@@ -58,6 +64,54 @@ class Item:
 @dataclass
 class SyntheticItem(Item):
     hardness: int = 0
+
+
+@dataclass
+class Span:
+    """One annotated private span: `text[start:end]`, typed by TAB's entity taxonomy."""
+
+    start: int
+    end: int
+    entity_type: str
+    text: str
+
+
+@dataclass
+class TabDocument:
+    """A TAB-ECHR document.
+
+    Deliberately NOT an `Item`. The two corpora answer different questions: an `Item` says
+    "this text leaks *these attribute values*" and carries `relevant_pii`; a `TabDocument`
+    says "*these characters* are private" and carries typed spans. There is no attribute ->
+    value map here to fill in, and pretending otherwise would put an empty dict on every
+    document and quietly break anything that trusts `relevant_pii`.
+
+    What they do share is `username`/`text`, so code that only needs an id and a body works
+    on both.
+    """
+
+    username: str  # TAB's doc_id
+    text: str
+    spans: List[Span] = field(default_factory=list)
+
+    @property
+    def doc_id(self) -> str:
+        """TAB's own name for the id, for readers coming from the benchmark."""
+        return self.username
+
+    def spans_of(self, entity_types: Optional[Sequence[str]] = None) -> List[Span]:
+        """Spans, optionally restricted to some entity types."""
+        if entity_types is None:
+            return list(self.spans)
+        allowed = set(entity_types)
+        return [s for s in self.spans if s.entity_type in allowed]
+
+    def offsets(self, entity_types: Optional[Sequence[str]] = None) -> List[List[int]]:
+        """`[[start, end], ...]` -- the span form the rest of the package speaks."""
+        return [[s.start, s.end] for s in self.spans_of(entity_types)]
+
+    def entity_types(self) -> List[str]:
+        return sorted({s.entity_type for s in self.spans})
 
 
 class Dataset:
@@ -255,7 +309,143 @@ class Synthetic(Dataset):
         }
 
 
-_REGISTRY: Dict[str, Type[Dataset]] = {cls.name: cls for cls in (SynthPAI, Synthetic)}
+#: The eight categories TAB annotates and DP-Fusion treats as private (paper Table 3).
+#: Same list as `fusit.utils.ENTITY_TYPES`, which is also how `DEFAULT_BETA_DICT` is keyed.
+TAB_ENTITY_TYPES = ["PERSON", "CODE", "LOC", "ORG", "DEM", "DATETIME", "QUANTITY", "MISC"]
+
+#: Paper Section 5.1: every type is private during generation, but the *attack* is scored
+#: only on these three, "as they appear consistently across all documents".
+ATTACK_ENTITY_TYPES = ["PERSON", "CODE", "DATETIME"]
+
+#: Paper Appendix A.5: "we do not distinguish between direct and quasi identifiers. Instead,
+#: we take their union and treat all such values uniformly". NO_MASK is the third value TAB
+#: uses and marks spans the annotators judged safe to leave in.
+PRIVATE_IDENTIFIER_TYPES = {"DIRECT", "QUASI"}
+
+
+class TabECHR(Dataset):
+    """TAB-ECHR: European Court of Human Rights judgments with hand-annotated private spans.
+
+    This is DP-Fusion's own evaluation corpus (paper Section 5.1), and the reason its item
+    type differs from the other two: the ground truth is *which characters are private*, not
+    which attribute value can be guessed. See `TabDocument`.
+
+    Two annotation choices have to be made when reading the file, and both are recorded here
+    rather than buried in a caller:
+
+    - **Which identifier types count.** TAB marks each mention DIRECT, QUASI or NO_MASK.
+      The paper takes DIRECT u QUASI and drops NO_MASK, which is what `identifier_types`
+      defaults to.
+    - **Which annotator.** Documents carry 1-10 annotators (test split: 22 documents have
+      one, 34 have two, 15 have ten). `annotator="first"` takes the first listed -- arbitrary
+      but reproducible, and what this repo's earlier results used. `annotator="union"` takes
+      every annotator's spans, which raises recall; the paper's Appendix A.17 argues recall
+      is the axis that matters, since a missed span falls outside the DP guarantee entirely
+      while an over-tagged one only costs utility.
+
+    Not vendored into git: the three splits are 70 MB of json. `dataset/README.md` has the
+    fetch command; `dataset/tab_echr/` is where they land.
+    """
+
+    name = "tab_echr"
+    filename = "tab_echr/echr_test.json"
+    SPLITS = ("train", "dev", "test")
+
+    def __init__(
+        self,
+        split: str = "test",
+        path: Optional[Path] = None,
+        annotator: str = "first",
+        identifier_types: Optional[Sequence[str]] = None,
+    ):
+        if split not in self.SPLITS:
+            raise ValueError(f"unknown split {split!r}, expected one of {self.SPLITS}")
+        if annotator not in ("first", "union"):
+            raise ValueError(f"annotator must be 'first' or 'union', got {annotator!r}")
+
+        self.split = split
+        self.annotator = annotator
+        self.identifier_types = set(identifier_types) if identifier_types else set(PRIVATE_IDENTIFIER_TYPES)
+        self.filename = f"tab_echr/echr_{split}.json"
+        super().__init__(path)
+
+    def __repr__(self) -> str:
+        return (f"TabECHR(split={self.split!r}, annotator={self.annotator!r}, "
+                f"path={str(self.path)!r})")
+
+    def _records(self) -> List[dict]:
+        """One JSON array, not jsonl -- so the base class's line-by-line read does not apply."""
+        if not self.path.exists():
+            raise FileNotFoundError(
+                f"TAB-ECHR {self.split} split not found at {self.path}. It is not vendored "
+                "(70 MB); see dataset/README.md for the fetch command, or set "
+                "FUSIT_DATASET_DIR to a directory containing tab_echr/."
+            )
+        with open(self.path) as f:
+            return json.load(f)
+
+    def _mentions(self, record: dict) -> List[dict]:
+        annotations = record["annotations"]
+        if self.annotator == "first":
+            return annotations[next(iter(annotations))]["entity_mentions"]
+        seen, out = set(), []
+        for ann in annotations.values():
+            for m in ann["entity_mentions"]:
+                key = (m["start_offset"], m["end_offset"], m["entity_type"])
+                if key not in seen:
+                    seen.add(key)
+                    out.append(m)
+        return out
+
+    def load(self) -> List[TabDocument]:
+        docs = []
+        for r in self._records():
+            spans = [
+                Span(m["start_offset"], m["end_offset"], m["entity_type"], m["span_text"])
+                for m in self._mentions(r)
+                if m["identifier_type"] in self.identifier_types
+            ]
+            spans.sort(key=lambda s: (s.start, s.end))
+            docs.append(TabDocument(username=r["doc_id"], text=r["text"], spans=spans))
+        return docs
+
+    def select(
+        self,
+        n: Optional[int] = None,
+        seed: int = 0,
+        require_types: Optional[Sequence[str]] = None,
+    ) -> List[TabDocument]:
+        """As `Dataset.select`, plus `require_types`: keep only documents carrying at least
+        one span of *each* listed type. Pass `ATTACK_ENTITY_TYPES` to guarantee every
+        document supports the paper's PERSON/CODE/DATETIME attack scope."""
+        docs = self.items()
+        if require_types:
+            required = set(require_types)
+            docs = [d for d in docs if required.issubset(set(d.entity_types()))]
+        if n is not None and n < len(docs):
+            return random.Random(seed).sample(docs, n)
+        return list(docs)
+
+    def stats(self) -> Dict:
+        from collections import Counter
+
+        docs = self.items()
+        total = sum(len(d.text) for d in docs)
+        private = sum(s.end - s.start for d in docs for s in d.spans)
+        counts = Counter(s.entity_type for d in docs for s in d.spans)
+        return {
+            "num_items": len(docs),
+            "total_chars": total,
+            "avg_chars": total / len(docs) if docs else 0,
+            "private_chars": private,
+            "private_pct": 100 * private / total if total else 0,
+            "num_entities": sum(counts.values()),
+            "avg_entities": sum(counts.values()) / len(docs) if docs else 0,
+            "entity_type_counts": dict(counts),
+        }
+
+
+_REGISTRY: Dict[str, Type[Dataset]] = {cls.name: cls for cls in (SynthPAI, Synthetic, TabECHR)}
 DATASETS = tuple(_REGISTRY)
 
 _instances: Dict[str, Dataset] = {}

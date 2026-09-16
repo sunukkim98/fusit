@@ -85,5 +85,10 @@ CLAUDE.md
 .claude/
 todo.md
 
+# TAB-ECHR raw corpus: 70 MB of json, too large to track. The SynthPAI and synthetic
+# jsonl next to it ARE tracked (2.8 MB); only this one is fetched rather than vendored.
+# dataset/README.md has the command.
+dataset/tab_echr/*.json
+
 # Reproduction study (not part of the published library)
 repro/
