@@ -28,6 +28,7 @@ Modules:
     chat        one portable chat call (template fallback, context budget)
     parsing     reading guesses and evidence quotes back out of free text
     spans       span algebra, plus the controls a cue-quality claim needs
+    scoring     TRACE-RPS's model-free scoring of attacker guesses
     ner         NER(D): spaCy, or Presidio + BERT-NER as in DP-Fusion's appendix A.16
     signals     the three sources: ner_spans, infer_and_chain, attention_spans
     tagger      CueTagger
@@ -70,6 +71,7 @@ from fusit.trace.signals import (
     infer_and_chain,
     oracle_gt_spans,
 )
+from fusit.trace.scoring import compare_ages, score_hits
 from fusit.trace.spans import (
     content_word_spans,
     coverage,
@@ -88,10 +90,10 @@ __all__ = [
     "ATTRIBUTES", "ATTRIBUTE_LABEL", "ATTRIBUTE_OPTIONS", "ATTRIBUTE_QUESTION",
     "BACKENDS", "CueTagger", "NER_LABELS", "PRESIDIO_NER_MODEL",
     "PRESIDIO_TO_ENTITY_TYPE", "SOURCES", "build_x_priv",
-    "attention_spans", "chat", "content_word_spans", "coverage", "extract_evidence_quotes",
+    "attention_spans", "chat", "compare_ages", "content_word_spans", "coverage", "extract_evidence_quotes",
     "format_chat", "guess_attribute", "infer_and_chain", "is_functional_word", "label_of",
     "merge_spans", "ner_spans", "oracle_all_content", "oracle_gt_spans",
     "parse_inference_response", "presidio_entities", "presidio_ner_spans",
-    "question_of", "random_spans_matched", "redact", "spacy_ner_spans",
+    "question_of", "random_spans_matched", "redact", "score_hits", "spacy_ner_spans",
     "split_guesses",
 ]

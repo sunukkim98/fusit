@@ -29,10 +29,17 @@ dependencies = [
 # instead of listed; fusit.trace.ner raises with these commands when one is missing.
 trace = [
     "spacy>=3.4.4,<4.0.0",
+    "Levenshtein>=0.20",   # fusit.trace.scoring, TRACE-RPS's str_is_close
 ]
 trace-presidio = [
     "fusit[trace]",
     "presidio-analyzer[transformers]>=2.2.0",
+]
+# fusit.utility: Staab et al.'s lexical scores and TRACE-RPS's Sentence-BERT similarity
+eval = [
+    "rouge-score>=0.1.2",
+    "nltk>=3.8",
+    "sentence-transformers>=2.2.0",
 ]
 dev = [
     "pytest>=7.0.0",
