@@ -207,10 +207,13 @@ def dp_fusion_groups_incremental(
         print(f"[Initial] Input batch shape: {input_batch.shape}")
 
     with torch.no_grad(), torch.amp.autocast("cuda", enabled=True):
-        outputs = model(input_ids=input_batch, use_cache=True, past_key_values=None)
+        # logits_to_keep=1: only the last position's distribution is used, and materialising
+        # all of them costs batch x prompt x vocab -- 5 GB for six contexts of a 2.8k-token
+        # SynthPAI profile against Qwen's 152k vocabulary, enough to OOM a 24 GB card.
+        outputs = model(input_ids=input_batch, use_cache=True, past_key_values=None, logits_to_keep=1)
 
     past = outputs.past_key_values
-    last_logits = outputs.logits[:, input_batch.size(1) - 1, :]
+    last_logits = outputs.logits[:, -1, :]
     group_logits = {g: last_logits[i] for i, g in enumerate(group_order)}
 
     pub_scaled = group_logits["PUBLIC"].float() / temperature

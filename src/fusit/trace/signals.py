@@ -85,6 +85,7 @@ def infer_and_chain(text: str, attribute: str, model, tokenizer) -> Dict:
 # V_att
 # ---------------------------------------------------------------------------
 
+@torch.no_grad()
 def attention_spans(
     text: str, question: str, model, tokenizer, k: int = 10, return_weights: bool = False
 ):
@@ -130,9 +131,13 @@ def attention_spans(
 
     handle = model.model.layers[-1].self_attn.register_forward_hook(_grab)
     try:
-        out = model(**enc) if True else None
+        # Only the hooked attention weights are read, so skip what a normal forward also keeps:
+        # the KV cache (1.4 GB for Llama-2-7B at ~3.5k tokens) and logits for every position.
+        # On the longest SynthPAI profile those two were the difference between fitting a
+        # 24 GB card and OOM.
+        out = model(**enc, use_cache=False, logits_to_keep=1)
         if "attn" not in captured:  # backend returned no weights; fall back
-            out = model(**enc, output_attentions=True)
+            out = model(**enc, output_attentions=True, use_cache=False, logits_to_keep=1)
             captured["attn"] = out.attentions[-1]
     finally:
         handle.remove()
