@@ -43,17 +43,21 @@ from fusit.trace.spans import WORD_RE, is_functional_word
 # V_cot
 # ---------------------------------------------------------------------------
 
-def guess_attribute(text: str, attribute: str, model, tokenizer) -> Dict:
+def guess_attribute(text: str, attribute: str, model, tokenizer, return_response: bool = False) -> Dict:
     """The attacker's guess step alone (no privacy-leakage chain) -- reused both as the
     first half of infer_and_chain (V_cot) and standalone for Q2's implicit-ASR attack
-    against the paraphrased output in repro/synthpai_eval.py."""
+    against the paraphrased output in repro/synthpai_eval.py.
+
+    return_response: also return the unparsed answer under "response", for callers that
+    need to tell a refusal from a guess after the fact (fusit.floor)."""
     label = label_of(attribute)
     options = ATTRIBUTE_OPTIONS.get(attribute, "")
     user_prompt = ADVERSARIAL_INFERENCE_QUERY_PROMPT_TEMPLATE.format(
         target_attribute=label, target_attribute_options=options, comments=text
     )
     response = chat(model, tokenizer, ADVERSARIAL_INFERENCE_SYSTEM_PROMPT, user_prompt, max_new_tokens=400)
-    return parse_inference_response(response)
+    parsed = parse_inference_response(response)
+    return {**parsed, "response": response} if return_response else parsed
 
 
 def infer_and_chain(text: str, attribute: str, model, tokenizer) -> Dict:

@@ -1,8 +1,8 @@
 #!/bin/bash
 # Submit the Table 1 run across every usable GPU.
 #
-#   bash scripts/table1/submit.sh [trace|dpfusion|tracerps|utility|perplexity]           first submission (default trace)
-#   bash scripts/table1/submit.sh [trace|dpfusion|tracerps|utility|perplexity] --retry   clear unfinished claims, resubmit
+#   bash scripts/table1/submit.sh [trace|dpfusion|tracerps|utility|perplexity|floor]           first submission (default trace)
+#   bash scripts/table1/submit.sh [trace|dpfusion|tracerps|utility|perplexity|floor] --retry   clear unfinished claims, resubmit
 #
 # --retry releases EVERY unfinished claim, including ones a running worker holds; only use it
 # once no worker of that variant is left in the queue.
@@ -13,8 +13,8 @@
 set -eu
 cd /home/sunuk/fusit
 VARIANT=trace
-case "${1:-}" in trace|dpfusion|tracerps|utility|perplexity) VARIANT=$1; shift ;; esac
-case $VARIANT in trace) OUT=results/table1 P=t1t ;; dpfusion) OUT=results/table1_dpfusion P=t1d ;; tracerps) OUT=results/table1_tracerps P=t1r ;; utility) OUT=results/table1_utility P=t1u ;; perplexity) OUT=results/table1_perplexity P=t1p ;; esac
+case "${1:-}" in trace|dpfusion|tracerps|utility|perplexity|floor) VARIANT=$1; shift ;; esac
+case $VARIANT in trace) OUT=results/table1 P=t1t ;; dpfusion) OUT=results/table1_dpfusion P=t1d ;; tracerps) OUT=results/table1_tracerps P=t1r ;; utility) OUT=results/table1_utility P=t1u ;; perplexity) OUT=results/table1_perplexity P=t1p ;; floor) OUT=results/diag_floor P=t1f ;; esac
 
 SYNTHPAI_SHARDS=30   # ~10 profiles each
 SYNTHETIC_SHARDS=20  # ~26 comments each

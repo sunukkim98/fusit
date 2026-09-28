@@ -25,6 +25,8 @@
 #            results/table1_utility
 #            perplexity: DP-Fusion's teacher-forced perplexity for the same outputs
 #            (fusit.perplexity) -- results/table1_perplexity
+#            floor: the same attacker on an empty comments slot and on fully masked text
+#            (fusit.floor), the floor Table 1 is normalized against -- results/diag_floor
 
 set -u
 cd /home/sunuk/fusit
@@ -56,6 +58,10 @@ case "$VARIANT" in
     OUT=results/table1_perplexity
     MODULE=fusit.perplexity
     ;;
+  floor)
+    OUT=results/diag_floor
+    MODULE=fusit.floor
+    ;;
   *) echo "unknown VARIANT=$VARIANT"; exit 2 ;;
 esac
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -82,6 +88,7 @@ for unit in $UNITS; do
     fusit.baselines) RUN="$PY -m fusit.baselines --tagger-model NousResearch/Llama-2-7b-chat-hf --max-rounds ${MAX_ROUNDS:-5} $MODELS $SHARD_ARGS --n-items 0" ;;
     fusit.utility)   RUN="$PY -m fusit.utility $SHARD_ARGS" ;;
     fusit.perplexity) RUN="$PY -m fusit.perplexity $SHARD_ARGS" ;;
+    fusit.floor)     RUN="$PY -m fusit.floor --attacker-model NousResearch/Meta-Llama-3.1-8B-Instruct --empty-cache $OUT/empty_responses.json $SHARD_ARGS --n-items 0" ;;
   esac
   if $RUN \
       --output "$OUT/$ds/shard_${shard}.jsonl"; then
