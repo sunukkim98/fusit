@@ -92,3 +92,6 @@ dataset/tab_echr/*.json
 
 # Reproduction study (not part of the published library)
 repro/
+
+# Experiment outputs (JSONL checkpoints, logs, claims)
+results/
