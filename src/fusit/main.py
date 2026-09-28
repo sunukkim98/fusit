@@ -8,7 +8,7 @@ starts:
 
     1. tag         the cue tagger marks what leaks each attribute: NER(D) u V_cot u V_att
     2. paraphrase  DP-Fusion rewrites the document once per alpha*beta, one privacy group
-                   per cue source
+                   per cue source (--grouping single: one group holding all of X_priv)
     3. attack      an attacker tries to recover each attribute from the original, from
                    redacted copies, and from every paraphrase
 
@@ -37,6 +37,7 @@ import json
 import math
 import sys
 import time
+import zlib
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
@@ -56,6 +57,12 @@ CONDITION_KINDS = ("no_defense", "ner_redaction", "x_priv_redaction", "dp_fusion
 
 #: Sources that need the tagger LLM; `ner` alone runs without loading it.
 LLM_SOURCES = {"cot", "att"}
+
+#: How X_priv becomes DP-Fusion privacy groups (--grouping).
+GROUPINGS = ("source", "single")
+
+#: The one group --grouping single builds.
+SINGLE_GROUP = "x_priv"
 
 DTYPES = {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32}
 
@@ -101,6 +108,9 @@ def build_parser() -> argparse.ArgumentParser:
                      help="presidio backend only: union spaCy dates back in")
     tag.add_argument("--precedence", nargs="+", choices=SOURCES, default=["ner", "cot", "att"],
                      help="which source keeps a span two sources both marked")
+    tag.add_argument("--tags-from", type=Path, nargs="+", default=None, metavar="JSONL",
+                     help="take stage 1 from these earlier outputs instead of rerunning the "
+                          "tagger; their tag config must match this run's")
 
     dpf = p.add_argument_group("DP-Fusion")
     dpf.add_argument("--alpha-beta", type=float, nargs="+", default=[0.1], metavar="CAP",
@@ -116,6 +126,18 @@ def build_parser() -> argparse.ArgumentParser:
                      help="with --max-new-tokens 0: budget = ratio x document tokens")
     dpf.add_argument("--max-new-tokens-cap", type=int, default=2048,
                      help="with --max-new-tokens 0: upper bound on the sized budget")
+    dpf.add_argument("--grouping", choices=GROUPINGS, default="source",
+                     help="source: one private group per cue source, output = mean over groups "
+                          "of lambda_i p_i + (1 - lambda_i) p_pub. single: all of X_priv in one "
+                          "group, so the private context is the whole document (DP-Fusion "
+                          "Appendix A.19)")
+    dpf.add_argument("--gen-seed", type=int, default=None,
+                     help="reseed sampling before every paraphrase from (seed, item, cap), so a "
+                          "paraphrase does not depend on which shard or order produced it; "
+                          "unset, the generator is never reseeded")
+    dpf.add_argument("--save-token-trace", action="store_true",
+                     help="store every step's lambda and divergence per group, not only their "
+                          "mean, max and the epsilon they give")
 
     run = p.add_argument_group("run")
     run.add_argument("--num-shards", type=int, default=1)
@@ -151,6 +173,8 @@ def validate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
         parser.error("--ner-score-threshold only applies to --ner-backend presidio")
     if args.ner_with_dates and args.ner_backend != "presidio":
         parser.error("--ner-with-dates only applies to --ner-backend presidio")
+    if args.tags_from and not all(p.exists() for p in args.tags_from):
+        parser.error(f"--tags-from: missing {[str(p) for p in args.tags_from if not p.exists()]}")
     if args.device.startswith("cuda") and not torch.cuda.is_available():
         parser.error(f"--device {args.device} requested but CUDA is not available")
 
@@ -211,6 +235,27 @@ def partition_by_source(text: str, by_source: Dict[str, List[List[int]]],
     return sorted(out, key=lambda s: s.start)
 
 
+def dp_fusion_contexts(tok, rec: dict, grouping: str, precedence: Sequence[str]) -> Dict[str, List[int]]:
+    """The length-matched contexts one item is paraphrased from, PUBLIC first.
+
+    Both groupings hide the same characters -- all of X_priv -- from PUBLIC; they differ in
+    what a private context reveals. `source` gives each cue source its own context revealing
+    only that source's spans, so no single distribution sees X_priv whole. `single` has one
+    context revealing all of it, which is the unredacted prompt.
+    """
+    text = rec["text"]
+    if grouping == "single":
+        spans = [Span(s, e, SINGLE_GROUP, text[s:e]) for s, e in merge_spans(rec["x_priv"])]
+        return build_contexts(tok, text, spans, entity_types=[SINGLE_GROUP])
+    partition = partition_by_source(text, rec["spans"], precedence)
+    return build_contexts(tok, text, partition, entity_types=precedence)
+
+
+def generation_seed(seed: int, item: str, cap: str) -> int:
+    """A fixed seed per paraphrase, stable across processes (unlike `hash`)."""
+    return zlib.crc32(f"{seed}:{item}:{cap}".encode())
+
+
 def theorem4_epsilon(divergences: Sequence[float], alpha: float, delta: float, m: int) -> float:
     """DP-Fusion Theorem 4 for one group over a T-token transcript.
 
@@ -247,16 +292,30 @@ def select_items(args) -> list:
 #: Arguments a stage's stored output depends on. Resuming under different values would
 #: silently mix two experiments in one file, so a mismatch is refused.
 STAGE_CONFIG = {
-    "tag": ("tagger_model", "sources", "k_att", "ner_backend", "ner_score_threshold",
-            "ner_with_dates"),
+    "tag": ("tagger_model", "sources", "k_att", "ner_backend", "ner_with_dates"),
     "paraphrase": ("paraphrase_model", "precedence", "alpha", "delta", "temperature",
                    "max_new_tokens", "length_ratio", "max_new_tokens_cap"),
     "attack": ("attacker_model",),
 }
 
 
+#: Paraphrase arguments recorded only when set away from their default, so records written
+#: before they existed still match a default run.
+#: results/table1 predates --ner-score-threshold, so its tag config lacks that key.
+OPTIONAL_CONFIG = {
+    "tag": {"ner_score_threshold": 0.0},
+    "paraphrase": {"grouping": "source", "gen_seed": None},
+}
+
+
+def without_defaults(config: dict, stage: str) -> dict:
+    defaults = OPTIONAL_CONFIG.get(stage, {})
+    return {k: v for k, v in config.items() if not (k in defaults and v == defaults[k])}
+
+
 def stage_config(args, stage: str) -> dict:
-    return {k: getattr(args, k) for k in STAGE_CONFIG[stage]}
+    keys = [*STAGE_CONFIG[stage], *OPTIONAL_CONFIG.get(stage, {})]
+    return without_defaults({k: getattr(args, k) for k in keys}, stage)
 
 
 def load_records(path: Path) -> Dict[str, dict]:
@@ -283,7 +342,7 @@ def write_records(path: Path, records: Dict[str, dict]) -> None:
 
 def check_config(rec: dict, args, stage: str) -> None:
     stored = rec.get("config", {}).get(stage)
-    if stored is not None and stored != stage_config(args, stage):
+    if stored is not None and without_defaults(stored, stage) != stage_config(args, stage):
         raise SystemExit(
             f"{rec['item']}: stage '{stage}' in the output was produced with {stored}, "
             f"but this run asks for {stage_config(args, stage)}. Use a different --output."
@@ -294,6 +353,32 @@ def check_config(rec: dict, args, stage: str) -> None:
 # stages
 # ---------------------------------------------------------------------------
 
+#: What stage 1 writes, and all --tags-from copies.
+TAG_FIELDS = ("item", "dataset", "text", "truth", "spans", "x_priv", "coverage")
+
+
+def reuse_tags(args, todo: list, records: Dict[str, dict]) -> list:
+    """Fill `records` from --tags-from for the items it has; returns the ones it lacks."""
+    pool = {}
+    for path in args.tags_from:
+        pool.update(load_records(path))
+    missing = []
+    for item in todo:
+        old = pool.get(item.username)
+        if old is None:
+            missing.append(item)
+            continue
+        check_config(old, args, "tag")
+        if old["text"] != item.text:
+            raise SystemExit(f"{item.username}: --tags-from text differs from the dataset's")
+        records[item.username] = {**{k: old[k] for k in TAG_FIELDS},
+                                  "config": {"tag": old["config"]["tag"]}}
+    if len(missing) < len(todo):
+        write_records(args.output, records)
+        log(f"tag: reused {len(todo) - len(missing)} item(s) from --tags-from")
+    return missing
+
+
 def stage_tag(args, items, records: Dict[str, dict]) -> None:
     todo = []
     for item in items:
@@ -302,6 +387,8 @@ def stage_tag(args, items, records: Dict[str, dict]) -> None:
             check_config(rec, args, "tag")
             continue
         todo.append(item)
+    if todo and args.tags_from:
+        todo = reuse_tags(args, todo, records)
     if not todo:
         log("tag: every item already done")
         return
@@ -365,10 +452,9 @@ def stage_paraphrase(args, items, records: Dict[str, dict]) -> None:
         text = rec["text"]
         rec.setdefault("config", {})["paraphrase"] = stage_config(args, "paraphrase")
         rec.setdefault("paraphrases", {})
-        partition = partition_by_source(text, rec["spans"], args.precedence)
 
         # contexts use THIS model's tokenizer -- length alignment holds for one tokenization
-        ctx = build_contexts(tok, text, partition, entity_types=args.precedence)
+        ctx = dp_fusion_contexts(tok, rec, args.grouping, args.precedence)
         groups = [k for k in ctx if k != "PUBLIC"]
         rec["groups"] = groups
         if not groups:
@@ -387,6 +473,8 @@ def stage_paraphrase(args, items, records: Dict[str, dict]) -> None:
             if cap in rec["paraphrases"]:
                 continue
             io = {k: torch.tensor(v) for k, v in ctx.items()}
+            if args.gen_seed is not None:
+                torch.manual_seed(generation_seed(args.gen_seed, rec["item"], cap))
             t0 = time.perf_counter()
             _, lambdas, divergences = dp_fusion_groups_incremental(
                 token_ids_groups=io, beta_dict={g: float(cap) for g in groups}, alpha=args.alpha,
@@ -404,6 +492,9 @@ def stage_paraphrase(args, items, records: Dict[str, dict]) -> None:
                 "epsilon": {g: theorem4_epsilon(v, args.alpha, args.delta, len(groups))
                             for g, v in divergences.items()},
             }
+            if args.save_token_trace:
+                # step t here is generated token t+1: the loop logs nothing for the first
+                rec["paraphrases"][cap]["trace"] = {"lambda": lambdas, "divergence": divergences}
             write_records(args.output, records)
             log(f"paraphrase {n}/{len(todo)} {rec['item']} cap={cap}: "
                 f"{rec['paraphrases'][cap]['tokens']}/{budget} tokens ({time.perf_counter() - t0:.1f}s)")
