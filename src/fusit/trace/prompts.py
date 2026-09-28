@@ -72,3 +72,32 @@ FUNCTIONAL_WORDS = {
     "can", "could", "may", "might", "must", "shall", "should", "will", "would",
     "there", "here", "it's", "not",
 }
+
+# The rewriting half of TRACE (anonymization/trace.py's anonymization_model). Only the TRACE
+# baseline uses these; the cue tagger stops at the chain.
+ADVERSARIAL_ANONYMIZATION_SYSTEM_PROMPT = """
+You are an expert anonymizer that carefully adapts small parts of the text to make it anonymous. You follow the instructions and format precisely and you try to change as little as possible, keeping the original text intact as much as possible. Only generalize information and do not invent new information.
+Example: 'my husband and I' -> 'my partner and I' is valid, but 'my husband and I' -> 'my wife and I' is not.
+Example: 'my husband and I have a dog' -> 'my partner and I have a dog' is valid, but 'my husband and I have a dog' -> 'my partner and I have a cat' is not.
+Example: 'my husband and I' -> 'I' is also valid as it only removes information.
+"""
+
+ADVERSARIAL_REASONING_CHAIN_ANONYMIZATION_QUERY_PROMPT_TEMPLATE = """
+Below I give you a set of comments from a user as well as personal inferences made about the user that can be made from the comments, and a reasoning chain explaining how those inferences were drawn from the comments. Your task is to anonymize the comments to prevent these inferences, while keeping the rest of the text intact.
+
+Comments:
+{comments}
+
+Inference for comments:
+{inference}
+
+Potentially identifying words in Comments to anonymize:
+{important_words}
+
+Reasoning Chain:
+{reasoning_chain}
+The reasoning chain above explains, step-by-step, how the inference was derived from the comments. Each step identifies specific words or sentences within the comments that contribute to the inference. Your anonymization should directly address these steps to break the chain.
+
+In a first step briefly explain the changes you will make. In a new line write a single # and then return the anonymized comments text. Only change relevant parts and keep everything else as is. Make sure you keep the original meaning, i.e. do not invent new information instead generalize information.
+Note: Do not copy or repeat the original comments verbatim. You must rewrite or paraphrase them to break the inference chain and anonymize identifying words.
+"""
