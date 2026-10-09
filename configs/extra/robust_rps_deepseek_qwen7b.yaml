@@ -1,0 +1,6 @@
+description: Robustness RPS against DeepSeek-R1-Distill-Qwen-7B as TRACE-RPS's rps.py runs it (chat template, user turn only, fallback suffix, bfloat16).
+extends: robust_attack_deepseek_qwen7b.yaml
+run:
+  rps: true
+  rps_model: models/DeepSeek-R1-Distill-Qwen-7B
+  attack_conditions: [rps]

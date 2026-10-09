@@ -1,0 +1,12 @@
+description: >
+  Explicit run on TAB-ECHR (DP-Fusion's 100 documents; 2026-10-04): as implicit.yaml with gold NER
+  (decision X4), every attribute (X5), DP-Fusion also on gold NER alone (the DP-Fusion row), and the
+  original attacked (No Defense). Masks stand in for No-DPI (X10).
+extends: implicit.yaml
+run:
+  dataset: tab
+  labels: fusit                          # the TAB run kept the default (TAB has its own labels)
+  ner_backend: gold
+  xpriv_conditions: [ner_only, ner_both, ner_att_vcot95]
+  attack_conditions: [no_defense, mask, dp_fusion, trace]
+  mask_conditions: [ner_only, ner_both, ner_att_vcot95]

@@ -65,6 +65,11 @@ class CueTagger:
         k: int = 10,
         ner_backend: str = "spacy",
         ner_options: Optional[Dict] = None,
+        strip_system: bool = False,
+        quote_match: str = "exact",
+        fuzzy_threshold: float = 90,
+        chain_max_new: int = 500,
+        fit_context: bool = False,
     ):
         unknown = set(sources) - set(SOURCES)
         if unknown:
@@ -89,6 +94,9 @@ class CueTagger:
         self.k = k
         self.ner_backend = ner_backend
         self.ner_options = dict(ner_options or {})
+        # decisions (b) and (a) of 2026-10-04, off by default
+        self.strip_system, self.quote_match, self.fuzzy_threshold = strip_system, quote_match, fuzzy_threshold
+        self.chain_max_new, self.fit_context = chain_max_new, fit_context
 
     def __repr__(self) -> str:
         return (f"CueTagger(sources={sorted(self.sources)}, "
@@ -114,20 +122,47 @@ class CueTagger:
         once the spans are merged -- so the breakdown is produced here rather than
         reconstructed by running each source again.
         """
+        return self.spans_by_source(self.tag(document, attributes))
+
+    def tag(self, document: str, attributes: Optional[Sequence[str]] = None) -> Dict:
+        """Everything the sources produced, kept apart by source and attribute:
+
+            {"ner": {"backend", "spans"},                               (document level)
+             "attributes": {attribute: {
+                 "att": {"words", "spans"},                             V_att: the top-k words
+                 "cot": {"inference", "guesses", "certainty", "chain",  V_cot: the attacker's
+                         "quotes": [{"quote", "spans"}], "evidence_spans"}}}}   guess and chain
+
+        Sources not enabled are left out. `explain` is these spans by source, merged."""
         attrs = list(attributes) if attributes is not None else self.attributes
-        out: Dict[str, List[List[int]]] = {s: [] for s in sorted(self.sources)}
+        out: Dict = {"attributes": {}}
 
         if "ner" in self.sources:
-            out["ner"] = ner_spans(document, backend=self.ner_backend, **self.ner_options)
+            out["ner"] = {"backend": self.ner_backend,
+                          "spans": ner_spans(document, backend=self.ner_backend, **self.ner_options)}
 
         for attr in attrs:
+            rec = {}
             if "att" in self.sources:
-                out["att"] += attention_spans(
-                    document, question_of(attr), self.model, self.tokenizer, k=self.k
-                )
+                spans = attention_spans(document, question_of(attr), self.model, self.tokenizer, k=self.k)
+                rec["att"] = {"words": [document[s:e] for s, e in spans], "spans": spans}
             if "cot" in self.sources:
-                out["cot"] += infer_and_chain(document, attr, self.model, self.tokenizer)["evidence_spans"]
+                rec["cot"] = infer_and_chain(document, attr, self.model, self.tokenizer, strip_system=self.strip_system,
+                                             quote_match=self.quote_match, fuzzy_threshold=self.fuzzy_threshold,
+                                             chain_max_new=self.chain_max_new, fit_context=self.fit_context)
+            out["attributes"][attr] = rec
+        return out
 
+    def spans_by_source(self, tagged: Dict) -> Dict[str, List[List[int]]]:
+        """`tag`'s record -> {source: merged spans} (`explain`'s result)."""
+        out: Dict[str, List[List[int]]] = {s: [] for s in sorted(self.sources)}
+        if "ner" in self.sources:
+            out["ner"] = tagged["ner"]["spans"]
+        for rec in tagged["attributes"].values():
+            if "att" in self.sources:
+                out["att"] += rec["att"]["spans"]
+            if "cot" in self.sources:
+                out["cot"] += rec["cot"]["evidence_spans"]
         return {src: merge_spans(spans) for src, spans in out.items()}
 
     # -- the fusit.dp_fusion tagger interface ----------------------------------

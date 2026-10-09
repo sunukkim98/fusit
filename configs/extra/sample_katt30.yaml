@@ -1,0 +1,9 @@
+description: >
+  V_att top-k 30 on a SynthPAI sample (2026-10-05): the main implicit run with k_att 30 (TRACE's SynthPAI
+  value) on 50 profiles (n_items + seed fix the sample). Thresholds are the full run's: --decide pools these
+  50 records with copies of the full run's other 248 (V_att does not enter verify, so the null pool is the
+  full run's). Compare with the full run's k_att 10 results on the same 50 profiles.
+extends: ../main/implicit.yaml
+run:
+  n_items: 50
+  k_att: 30

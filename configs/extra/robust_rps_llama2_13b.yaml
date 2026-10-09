@@ -1,0 +1,6 @@
+description: Robustness RPS (2026-10-07), suffix re-optimized against the attacker (models/Llama-2-13b-chat-hf); RPS settings as rps.yaml.
+extends: robust_attack_llama2_13b.yaml
+run:
+  rps: true
+  rps_model: models/Llama-2-13b-chat-hf
+  attack_conditions: [rps]

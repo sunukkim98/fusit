@@ -1,0 +1,8 @@
+description: >
+  Verifier threshold sweep on the tab run (2026-10-04): verified X_priv at @90, @85, @80 (the main run
+  has @95), masked and DP-Fusion at both alpha*beta. Run after tab.yaml on the same outputs.
+extends: tab.yaml
+run:
+  xpriv_conditions: [ner_att_vcot90, ner_att_vcot85, ner_att_vcot80]
+  attack_conditions: [mask, dp_fusion]
+  mask_conditions: [ner_att_vcot90, ner_att_vcot85, ner_att_vcot80]

@@ -1,0 +1,7 @@
+description: >
+  Utility of the k_att 5 sensitivity run (2026-10-07): the judge (Llama-3.1-8B, readability / meaning /
+  hallucination, plus ROUGE / cosine / SBERT) over the released texts already in its records. Every earlier stage
+  is done and reused; PPL stays off.
+extends: implicit_katt5.yaml
+run:
+  judge: true

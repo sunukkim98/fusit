@@ -26,6 +26,12 @@ not repeated here -- `fusit.main` already records it with the same model.
 
 The output JSONL is a checkpoint in the same way as `fusit.main`'s: records are rewritten
 after every item and each phase skips work already stored.
+
+LEGACY (decision RP4, 2026-10-04): this module produced the earlier results/table1 runs only -- RPS
+at the official 2 x 10,000 iterations over `optimization_prompt`, attacked with the
+pre-2026-10-04 `fusit.main` attack (the TRACE guess prompt, 400 tokens). Kept to preserve that
+code; the main table runs TRACE@1 and RPS through `fusit.main --trace / --rps` (decisions T*, R1-R5,
+RP1-RP3) and evaluates with the result tables' protocol. Whether to delete it is open.
 """
 
 import argparse

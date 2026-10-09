@@ -1,0 +1,9 @@
+description: >
+  RPS on the implicit run (2026-10-04): suffix on the original (RPS), TRACE@1 (TRACE-RPS@1) and every
+  paraphrase (+ RPS); R1 one restart x 1000, R3 official rule, R4 full forward, RP1-RP3. Evaluates the
+  rps@ texts only. Run after implicit.yaml on the same outputs.
+extends: implicit.yaml
+run:
+  rps: true
+  rps_model: models/Llama-3.1-8B-Instruct
+  attack_conditions: [rps]

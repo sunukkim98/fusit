@@ -1,0 +1,4 @@
+description: Attack (DeepSeek-R1-Distill-Qwen-7B, bfloat16) of combination 2's RPS texts, in its own process after robust_combo2_deepseek_qwen7b_rps.yaml.
+extends: robust_combo2_deepseek_qwen7b_rps.yaml
+run:
+  skip_attack: false

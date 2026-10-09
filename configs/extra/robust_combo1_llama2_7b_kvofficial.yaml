@@ -1,0 +1,10 @@
+description: >
+  Combination 1 (2026-10-07) with TRACE-RPS's official RPS budget, 2 restarts x 10,000 iterations, on KV-cached probes
+  (decision R4 option; same results as the full forward to within fp16, checked on 4 SynthPAI profiles). At the
+  experiments' 1 x 1000, long SynthPAI profiles stayed at p("I") ~ 0.05 against Llama-2-7B: the main run's Llama-3
+  initial suffix starts near the stage-1 threshold, the Llama-2 one does not.
+extends: robust_combo1_llama2_7b.yaml
+run:
+  rps_kv_cache: true
+  rps_restarts: 2
+  rps_iterations: 10000

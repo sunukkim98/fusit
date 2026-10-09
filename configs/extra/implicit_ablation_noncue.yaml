@@ -1,0 +1,14 @@
+description: >
+  RQ3 control without cues (2026-10-06), on the ablation run (output/fusit_ablation): random content words drawn
+  from outside NER u V_att u V_cot (every quote occurrence and every occurrence of a V_cot word), coverage matched
+  to ner_att_vcot95, seeds 0-2. Built by --decide with this config (it keeps every earlier condition); paraphrased
+  at alpha*beta 0.01 (the RQ3 table's) and attacked / judged / scored for PPL.
+extends: ../main/implicit.yaml
+run:
+  xpriv_conditions: [random_noncue95_s0, random_noncue95_s1, random_noncue95_s2]
+  alpha_beta: [0.01]
+  attack_conditions: [dp_fusion]
+  mask_conditions: [random_noncue95_s0, random_noncue95_s1, random_noncue95_s2]
+xpriv:
+  controls:
+    - {kind: random_noncue, levels: [95], seeds: [0, 1, 2]}

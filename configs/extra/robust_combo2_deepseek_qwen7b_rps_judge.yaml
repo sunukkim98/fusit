@@ -1,0 +1,6 @@
+description: Judge (Llama-3.1-8B, float16 as the main table) of combination 2's RPS texts, after robust_combo2_deepseek_qwen7b_rps.yaml.
+extends: robust_combo2_deepseek_qwen7b_rps.yaml
+run:
+  dtype: float16
+  skip_attack: false
+  judge: true

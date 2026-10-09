@@ -1,0 +1,10 @@
+description: >
+  Combination 3 (2026-10-08), first pass -- Qwen2.5-7B front end, attack Llama-2-13B-Chat (fp16 over two GPUs) on the
+  main table's rows without RPS (No Defense, NER (Presidio) mask, DP-Fusion (Presidio) 0.01 / 0.1, AA@1, TRACE@1,
+  ours 0.01 / 0.1). No judge: the texts are combination 1's (same Qwen front-end run), so is their utility. RPS against
+  13B is added later on the same output (robust_combo3_llama2_13b.yaml with the official KV-cached budget).
+extends: robust_combo3_llama2_13b.yaml
+run:
+  rps: false
+  attack_conditions: [no_defense, mask, dp_fusion, trace, aa]
+  judge: false

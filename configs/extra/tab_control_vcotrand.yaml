@@ -1,0 +1,16 @@
+description: >
+  Control A on the tab run (2026-10-05): V_cot word units drawn at random (seeds 0-2) until they add
+  as many chars beyond NER u V_att as the verifier's units at @95 / @90 / @85 / @80 -- does the verifier
+  beat a random choice among the same candidates at the same coverage? Masked and DP-Fusion at both
+  alpha*beta. Needs --decide with this config (it builds the controls).
+extends: ../main/tab.yaml
+run:
+  xpriv_conditions: &rand [ner_att_vcotrand95_s0, ner_att_vcotrand95_s1, ner_att_vcotrand95_s2,
+                           ner_att_vcotrand90_s0, ner_att_vcotrand90_s1, ner_att_vcotrand90_s2,
+                           ner_att_vcotrand85_s0, ner_att_vcotrand85_s1, ner_att_vcotrand85_s2,
+                           ner_att_vcotrand80_s0, ner_att_vcotrand80_s1, ner_att_vcotrand80_s2]
+  attack_conditions: [mask, dp_fusion]
+  mask_conditions: *rand
+xpriv:
+  controls:
+    - {kind: random_vcot, levels: [95, 90, 85, 80], seeds: [0, 1, 2]}

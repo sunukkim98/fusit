@@ -1,0 +1,15 @@
+description: >
+  alpha*beta sweep on the implicit run (2026-10-05), re-checking verifier/out/table/sweep.md with fusit.main:
+  DP-Fusion (Presidio) = ner_only, TRACE x DP-Fusion = ner_both, + Verifier = ner_att_vcot95, each at
+  alpha*beta 0.001 ... 10 and inf (lambda = 1 at every token: the unredacted paraphrase, the same mechanism
+  for all three). Masks are listed for the mechanism PPL of each mixture. Mean lambda and epsilon come from
+  the stored paraphrases. Run on a copy of the implicit outputs (scripts/reshard.py); the 0.01 / 0.1
+  paraphrases already there are reused.
+  Caps are written as floats on purpose: config values skip argparse's type=float, and an int 1 would
+  key the paraphrase "@1" while the mechanism PPL keys it "@1.0".
+extends: implicit.yaml
+run:
+  xpriv_conditions: [ner_only, ner_both, ner_att_vcot95]
+  alpha_beta: [0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, .inf]
+  attack_conditions: [mask, dp_fusion]
+  mask_conditions: [ner_only, ner_both, ner_att_vcot95]

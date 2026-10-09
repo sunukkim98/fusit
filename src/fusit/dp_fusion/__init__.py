@@ -13,11 +13,12 @@ Modules:
     contexts   length-matched public/per-group token sequences
     fusion     the mechanism: divergence, lambda search, the decoding loop
     epsilon    turns per-step divergences into an (epsilon, delta) guarantee
-    prompting  the shared private/public prompt template
+    prompting  the prompt templates (the official DP-Fusion-DPI one and fusit's chat-template one)
+    run        one DP-Fusion run per document, as the experiments call it (+ decisions D1-D4)
     tagger     Document Privacy API client for automatic phrase extraction
 """
 
-from fusit.dp_fusion.contexts import build_aligned_tokens, build_contexts, locate_document
+from fusit.dp_fusion.contexts import aligned_token_ids, build_aligned_tokens, build_contexts, locate_document
 from fusit.dp_fusion.core import DPFusion, generate_dp_text
 from fusit.dp_fusion.epsilon import compute_dp_epsilon, compute_epsilon_single_group
 from fusit.dp_fusion.fusion import (
@@ -26,14 +27,21 @@ from fusit.dp_fusion.fusion import (
     dp_fusion_groups_incremental,
     find_lambda,
 )
-from fusit.dp_fusion.prompting import format_prompt_new_template
+from fusit.dp_fusion.prompting import format_prompt_new_template, official_nodpi_prompt, official_prompt
+from fusit.dp_fusion.run import epsilon_single_group, generate_multi_group, generate_single_group
 from fusit.dp_fusion.tagger import Tagger
 
 __all__ = [
     "DEFAULT_BETA_DICT",
     "DPFusion",
     "Tagger",
+    "aligned_token_ids",
     "build_aligned_tokens",
+    "epsilon_single_group",
+    "generate_multi_group",
+    "generate_single_group",
+    "official_nodpi_prompt",
+    "official_prompt",
     "build_contexts",
     "compute_dp_epsilon",
     "compute_epsilon_single_group",

@@ -1,0 +1,8 @@
+description: >
+  V_att top-k 30 on all of SynthPAI (2026-10-05): the main implicit run with k_att 30 (TRACE's SynthPAI
+  value), end to end, after the 50-profile sample (sample_katt30.yaml). V_att does not enter verify, so the
+  298-profile null pool and thresholds are the full run's (checked). Compare with output/fusit_main_full.
+  Per job: --dataset synthpai; stage A adds `--stop-after verify`, then `--decide` over every shard.
+extends: implicit.yaml
+run:
+  k_att: 30

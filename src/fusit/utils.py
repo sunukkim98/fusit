@@ -6,8 +6,17 @@ marking text as private, plus the two span/token primitives that operate on them
 DP-Fusion algorithm itself lives in `fusit.dp_fusion`.
 """
 
+import zlib
 from bisect import bisect_right
-from typing import List
+from typing import List, Optional
+
+
+def seed_for(*parts, base: Optional[int] = None) -> int:
+    """Stable per-run seed from its identifying parts (independent of sharding and run order).
+    base=None: crc32 % 2**31 (verifier experiments); base=b: (b * 1_000_003 + crc32) % 2**31
+    (scripts/table1, base = its config SEED). Both forms are kept so stored runs reproduce."""
+    h = zlib.crc32("|".join(map(str, parts)).encode())
+    return h % (2**31) if base is None else (base * 1_000_003 + h) % (2**31)
 
 # Entity types available
 ENTITY_TYPES = [

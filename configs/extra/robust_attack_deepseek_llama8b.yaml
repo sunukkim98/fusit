@@ -1,0 +1,8 @@
+description: >
+  Robustness attack with DeepSeek-R1-Distill-Llama-8B: no system prompt (folded into the user turn, as the model card
+  asks), greedy like every attack, 3000 new tokens for its <think> block, which scoring drops.
+extends: robust_attack_base.yaml
+run:
+  attacker_model: models/DeepSeek-R1-Distill-Llama-8B
+  attack_template: chat_nosystem
+  attack_max_new: 3000
