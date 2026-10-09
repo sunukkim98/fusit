@@ -1,0 +1,7 @@
+description: Robustness attack with Llama-2-7B-Chat (its own chat template; 4096-token context).
+extends: robust_attack_base.yaml
+run:
+  attacker_model: models/Llama-2-7b-chat-hf
+  attack_template: chat
+  # Llama-2 has no grouped-query attention: its KV cache is ~4x Llama-3.1-8B per token, so smaller batches
+  attack_max_batch_tokens: 6000

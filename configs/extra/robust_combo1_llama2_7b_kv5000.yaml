@@ -1,0 +1,9 @@
+description: >
+  Combination 1 (2026-10-07) with the RPS budget Llama-2-7B needs: KV-cached probes (decision R4 option; same results as
+  the full forward to within fp16, checked on 4 SynthPAI profiles) and 1 x 5000 iterations instead of 1 x 1000 -- at 1000,
+  long SynthPAI profiles stayed at p("I") ~ 0.05 (the main run's Llama-3 initial suffix starts near the threshold, the
+  Llama-2 one does not).
+extends: robust_combo1_llama2_7b.yaml
+run:
+  rps_kv_cache: true
+  rps_iterations: 5000

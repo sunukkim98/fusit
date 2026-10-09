@@ -1,0 +1,14 @@
+description: >
+  V_att through the verifier (2026-10-06), on copies of the implicit full run (k_att 10): --verify-att scores
+  the V_att words as units next to the V_cot ones (only they are scored on an output verified before; the null
+  words, thresholds and V_cot decisions stay), --decide builds ner_vatt_vcot<level> = NER u verified V_att u
+  verified V_cot (and ner_vatt_cot<level>, V_att verified with V_cot whole: the 2 x 2), masked and paraphrased at the main table's alpha*beta and evaluated.
+  Stage A: add `--stop-after verify`; then `--decide` over every shard; then the same command without it.
+extends: ../main/implicit.yaml
+run:
+  verify_att: true
+  xpriv_conditions: [ner_vatt_vcot95, ner_vatt_cot95]
+  attack_conditions: [mask, dp_fusion]
+  mask_conditions: [ner_vatt_vcot95, ner_vatt_cot95]
+xpriv:
+  verified_att: true

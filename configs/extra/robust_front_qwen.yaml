@@ -1,0 +1,22 @@
+description: >
+  Model-combination robustness (2026-10-07), defence side: the main implicit run with Qwen2.5-7B-Instruct as the cue
+  tagger (attention + CoT) and the verifier; paraphrase / TRACE@1 / AA@1 stay Qwen2.5-7B as in implicit.yaml. Makes the
+  main table's released texts (TRACE@1, AA@1, ours = ner_att_vcot95 @ 0.01 / 0.1); the DP-Fusion (Presidio) paraphrases
+  (ner_only) do not depend on the tagger and are copied from fusit_ab_sweep after decide (copy_ner_only.py).
+  Combinations 1 (attack Llama-2-7B) and 3 (attack Llama-2-13B) attack copies of this run (robust_attack_*.yaml).
+  Per job: --dataset, --k-att (SynthPAI 30), shards, --output; stage A adds `--stop-after verify`, then `--decide`,
+  then stage B (stops before the attack).
+extends: ../main/implicit.yaml
+run:
+  tagger_model: models/Qwen2.5-7B-Instruct
+  verifier_model: models/Qwen2.5-7B-Instruct
+  aa: true
+  xpriv_conditions: [ner_only, ner_att_vcot95]
+  alpha_beta: [0.01, 0.1]
+  mask_conditions: [ner_only]
+  skip_attack: true
+  judge: false
+  ppl: false
+xpriv:
+  verified_levels: [95]
+  controls: []

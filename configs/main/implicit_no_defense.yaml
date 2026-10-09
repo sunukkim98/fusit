@@ -1,0 +1,7 @@
+description: >
+  No Defense on the implicit run (2026-10-05): the original D attacked, judged and scored for PPL with the
+  table protocol, on the full run's outputs (output/fusit_main_full). Every other stage is already done
+  there and is skipped.
+extends: implicit.yaml
+run:
+  attack_conditions: [no_defense]

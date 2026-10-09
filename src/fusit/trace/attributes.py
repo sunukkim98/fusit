@@ -12,7 +12,7 @@ get_attribute_options / get_attribute_questions (anonymization/trace.py); occupa
 city_country and birth_city_country extend the same pattern.
 """
 
-from typing import List
+from typing import Dict, List, Optional
 
 ATTRIBUTE_LABEL = {
     "age": "age",
@@ -44,6 +44,31 @@ ATTRIBUTE_OPTIONS = {
 }
 
 
+#: TRACE-RPS's own key for each attribute (reddit_utils.map_synthpai_to_pii / load_synthetic_profile).
+AUTHOR_KEY = {
+    "income_level": "income",
+    "age": "age",
+    "sex": "gender",
+    "education": "education",
+    "relationship_status": "relationship_status",
+    "occupation": "occupation",
+    "city_country": "location",
+    "birth_city_country": "birth_city_country",
+}
+
+#: Staab et al.'s prompt header wording: reddit_utils.type_to_str, keyed by attribute.
+STAAB_TYPE_STR = {
+    "income_level": "yearly income",
+    "education": "level of education",
+    "birth_city_country": "place of birth",
+    "city_country": "current place of living",
+    "relationship_status": "relationship status",
+    "age": "age",
+    "sex": "gender",
+    "occupation": "occupation",
+}
+
+
 #: Every attribute this module can be asked about.
 ATTRIBUTES: List[str] = list(ATTRIBUTE_LABEL)
 
@@ -61,7 +86,28 @@ def question_of(attribute: str) -> str:
     return ATTRIBUTE_QUESTION.get(attribute, f"What is their {label_of(attribute)}?")
 
 
+#: The order the evaluation attack (staab_multi) lists attributes in. TRACE-RPS iterates a Python
+#: set there, whose order is not reproducible, so the result tables fixed this one (attack_eval).
+STAAB_ORDER: List[str] = [
+    "income_level", "age", "sex", "education", "relationship_status",
+    "occupation", "city_country", "birth_city_country",
+]
+
+#: Number of answer options k_i for TRACE-RPS Eq. 15 (ASR). Free-form attributes have no option set;
+#: a refusal there is credited 0 (k = infinity), the conservative choice.
+NUM_OPTIONS: Dict[str, Optional[int]] = {
+    "sex": 2, "income_level": 5, "education": 6, "relationship_status": 4,
+    "age": None, "occupation": None, "city_country": None, "birth_city_country": None,
+}
+
+
+def refusal_credit(attribute: str) -> float:
+    """1/k_i, or 0 for attributes without a finite option set."""
+    k = NUM_OPTIONS.get(attribute)
+    return 1.0 / k if k else 0.0
+
+
 __all__ = [
-    "ATTRIBUTES", "ATTRIBUTE_LABEL", "ATTRIBUTE_OPTIONS", "ATTRIBUTE_QUESTION",
-    "label_of", "question_of",
+    "ATTRIBUTES", "ATTRIBUTE_LABEL", "ATTRIBUTE_OPTIONS", "ATTRIBUTE_QUESTION", "AUTHOR_KEY", "NUM_OPTIONS",
+    "STAAB_ORDER", "STAAB_TYPE_STR", "label_of", "question_of", "refusal_credit",
 ]

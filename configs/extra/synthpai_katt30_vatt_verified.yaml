@@ -1,0 +1,10 @@
+description: >
+  As implicit_vatt_verified.yaml, on a copy of the SynthPAI k_att 30 run (synthpai_katt30.yaml).
+extends: ../main/synthpai_katt30.yaml
+run:
+  verify_att: true
+  xpriv_conditions: [ner_vatt_vcot95, ner_vatt_cot95]
+  attack_conditions: [mask, dp_fusion]
+  mask_conditions: [ner_vatt_vcot95, ner_vatt_cot95]
+xpriv:
+  verified_att: true

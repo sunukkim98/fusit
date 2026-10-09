@@ -1,0 +1,9 @@
+description: >
+  AA@1 on the implicit full run (2026-10-06): one round of Staab et al.'s adversarial anonymization ("Large
+  Language Models are Advanced Anonymizers", prompt_level 3) from the tag stage's inferences, rewritten by the
+  TRACE@1 anonymizer (Qwen2.5-7B, greedy), then attacked / judged / scored for PPL with the table protocol.
+  Every other stage is already done in output/fusit_main_full and is skipped.
+extends: implicit.yaml
+run:
+  aa: true
+  attack_conditions: [aa]

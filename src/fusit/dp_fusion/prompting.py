@@ -11,9 +11,52 @@ Appendix A.8. Closing it instead hands the model a finished conversation, and it
 emitting EOS immediately: on TAB-ECHR with Qwen2.5-0.5B-Instruct that produced an empty
 paraphrase for 10 documents out of 10. `open_turn=False` restores the closed form for anyone
 who needs the old behaviour back.
+
+Two templates live here:
+
+    official_prompt              the official DP-Fusion-DPI template, verbatim
+                                 (DP-FUSION_Defense.py::format_prompt_new_template): instructions
+                                 in the system turn, hard-coded ChatML. Every DP-Fusion run of the
+                                 verifier experiments (implicit table, explicit Table 1, PPL) uses it.
+    format_prompt_new_template   fusit's own rendering through the tokenizer's chat template.
+                                 DIFFERS from the official one (decision D9, 2026-10-03): the
+                                 instructions move into the user turn, Qwen's default system prompt
+                                 is added, the typo "as a natural as" is fixed and line breaks change.
+                                 Kept for fusit.main / fusit.perplexity, which were run with it.
 """
 
 _SENTINEL = "<<<FUSIT_ASSISTANT_PREFILL>>>"
+
+#: DP-FUSION_Defense.py::format_prompt_new_template, verbatim (typo "as a natural as" included).
+#: {privacy} is empty for DP-Fusion; the No-DPI baselines insert " of this for ensuring privacy"
+#: (outputs_qwen_public.json).
+OFFICIAL_TEMPLATE = (
+    "<|im_start|>system\n"
+    "You are given a passage that may contain placeholders (underscores) or incomplete data. "
+    "Your job is to produce a natural paraphrase{privacy}. Do not use any underscores or "
+    "placeholders in your output. If data is missing, just omit it or paraphrase gracefully. "
+    "Do not output anything except the paraphrase. Make sure retain all information from the "
+    "source document.<|im_end|>\n"
+    "<|im_start|>user\n"
+    "Document:\n\n{doc}\n"
+    "Paraphrase the above text. Whenever a placeholder i.e {ph} exists, you must completely "
+    "ignore that information, as {ph} indicates redacted text. To ensure the generated text is "
+    "as a natural as possible, you must never output the {ph} themselves. <|im_end|>\n"
+    "<|im_start|>assistant\n"
+    "Sure. Here is the paraphrased document without underscores or placeholders:"
+)
+NODPI_PRIVACY = " of this for ensuring privacy"
+
+
+def official_prompt(tokenizer, doc: str, placeholder: str = "_") -> str:
+    """The official DP-Fusion prompt. `tokenizer` is unused (the template is hard-coded ChatML);
+    it is kept so this has the same (tokenizer, text) signature as the other prompt builders."""
+    return OFFICIAL_TEMPLATE.format(privacy="", doc=doc, ph=placeholder)
+
+
+def official_nodpi_prompt(tokenizer, doc: str, placeholder: str = "_") -> str:
+    """The official template with the No-DPI baselines' privacy instruction."""
+    return OFFICIAL_TEMPLATE.format(privacy=NODPI_PRIVACY, doc=doc, ph=placeholder)
 
 
 def format_prompt_new_template(

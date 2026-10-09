@@ -1,0 +1,10 @@
+description: >
+  V_att top-k sensitivity (2026-10-07): the main implicit run with k_att 15, end to end, attack accuracy only (no
+  judge, no PPL). SynthPAI: k 10 / 20 / 30 / 40 (10 = fusit_main_full, 30 = fusit_katt30_synthpai); Synthetic:
+  k 5 / 10 / 15 (10 = fusit_main_full). V_att does not enter verify, so the thresholds are the main run's.
+  Stage A: add `--stop-after verify`; then `--decide` over every shard; then the same command without it.
+extends: ../main/implicit.yaml
+run:
+  k_att: 15
+  judge: false
+  ppl: false

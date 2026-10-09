@@ -20,15 +20,39 @@ reproduce, not how fluent some output is. Two versions are computed:
        document slot of the same prompt and D is forced. For DP-Fusion this scores the
        paraphrase it actually released, which A does not.
 
-Both use Qwen2.5-7B-Instruct and DP-Fusion's paraphrasing prompt (`format_prompt_new_template`),
-as the paper does; D is forced right after its pre-filled "Sure. Here is the paraphrased
-document without underscores or placeholders:", preceded by a space. A document's perplexity
-is exp of its mean token NLL; `--summarize` averages that over documents, as a per-document
-utility.
+Both use Qwen2.5-7B-Instruct and fusit's paraphrasing prompt (`format_prompt_new_template`);
+D is forced right after its pre-filled "Sure. Here is the paraphrased document without
+underscores or placeholders:". A document's perplexity is exp of its mean token NLL;
+`--summarize` averages that over documents, as a per-document utility.
 
 Teacher forcing needs no decoding loop, so each context is one forward pass over prompt + D,
-and lambda is found for all positions at once: `find_lambdas` is `find_lambda` vectorised,
+and lambda is found for all positions at once: `solve_lambda` is `find_lambda` vectorised,
 with the same 20 bisection steps (its 1e-6 tolerance is first met on step 20).
+
+The teacher-forcing primitives below (`context_ids`, `target_logits`, `solve_lambda`,
+`group_contribution`, `plain_logprob`, `summarize_logprob`) are the ones every experiment
+computes perplexity with: scripts/table1/ppl_tf.py, ppl.py and ppl_release.py (explicit
+Table 1) and verifier/ppl.py (implicit table), with the official DP-Fusion-DPI prompt
+(fusit.dp_fusion.official_prompt, decision D9). With it they reproduce the paper's Table 1
+multi-group perplexity, 1.4592 / 1.4264, to four decimals (results/ppl_tf.md).
+
+Decisions recorded against the paper (2026-10-04; DP-Fusion-DPI has no utility-perplexity code):
+    B3-a  perplexity = exp(mean NLL of D) under the distribution a method shows the model
+          (mechanism) or given its released text in the prompt (release); mean over documents.
+    B3-c  D is tokenized on its own and appended to the prompt -- no leading space. Until
+          2026-10-04 this module forced " " + D; the experiments never did, and without the
+          space the paper's numbers come out (above).
+    B3-d  lambda: `solve_lambda`, the generator's bisection; this module's own `find_lambdas`
+          (the same algorithm) was folded into it on 2026-10-04.
+    E5    (2026-10-04) the result tables' runner (`mechanism_ppl`, `release_ppl`; fusit.main --ppl):
+          the official DP-Fusion-DPI prompt (D9) and ONE private group holding all of X_priv, as
+          the paraphrases were generated -- verifier/ppl.py until 2026-10-04.
+
+Two runners:
+    `mechanism_ppl` / `release_ppl`                      the result tables' (fusit.main --ppl)
+    `Scorer` + `main` (python -m fusit.perplexity)       LEGACY: the earlier results/table1 runs
+        only (fusit's own prompt, one group per cue source, the A/B naming above). Kept to
+        preserve that code; the main table uses the runner above. Whether to delete it is open.
 """
 
 import argparse
@@ -42,7 +66,7 @@ import torch
 import torch.nn.functional as F
 
 from fusit.dataset import Span
-from fusit.dp_fusion import build_contexts
+from fusit.dp_fusion import aligned_token_ids, build_contexts
 from fusit.dp_fusion.fusion import compute_renyi_divergence_clipped_symmetric
 from fusit.dp_fusion.prompting import format_prompt_new_template
 from fusit.main import (DTYPES, PIPELINE_DATASETS, load_model, load_records, log,
@@ -53,23 +77,123 @@ from fusit.utility import RUNS, load_run, outputs_for
 ALPHA, TEMPERATURE = 2.0, 1.0
 
 
-def find_lambdas(p_priv: torch.Tensor, p_pub: torch.Tensor, alpha: float, beta: float,
-                 max_iter: int = 20) -> torch.Tensor:
-    """`fusion.find_lambda` over a batch of positions: [N, V] x [N, V] -> [N]."""
-    n = p_pub.shape[0]
-    if beta <= 0:
-        return torch.zeros(n, device=p_pub.device)
-    at_one = compute_renyi_divergence_clipped_symmetric(p_priv, p_pub, alpha) <= beta
-    left = torch.zeros(n, device=p_pub.device)
-    right = torch.ones(n, device=p_pub.device)
-    for _ in range(max_iter):
-        mid = 0.5 * (left + right)
-        mix = mid[:, None] * p_priv + (1 - mid)[:, None] * p_pub
-        over = compute_renyi_divergence_clipped_symmetric(mix, p_pub, alpha) > beta
-        right = torch.where(over, mid, right)
-        left = torch.where(over, left, mid)
-    return torch.where(at_one, torch.ones_like(left), left)
+#: positions per vocabulary-sized softmax in the shared primitives
+CHUNK = 256
 
+
+def context_ids(tok, prompt_fn, text, redact_spans, placeholder: str = "_") -> List[int]:
+    """Token ids of `prompt_fn(tok, text)`, with every token overlapping a span of `text` swapped
+    for the placeholder (fusit.dp_fusion.aligned_token_ids' public side); spans have .start/.end."""
+    prompt = prompt_fn(tok, text)
+    private, public = aligned_token_ids(tok, prompt, text, [[s.start, s.end] for s in redact_spans],
+                                        placeholder)
+    return public
+
+
+@torch.inference_mode()
+def target_logits(model, ctx, tgt):
+    """[n, V] fp16 logits predicting each target token."""
+    ids = torch.tensor([list(ctx) + list(tgt)], device=model.device)
+    return model(input_ids=ids, logits_to_keep=len(tgt) + 1).logits[0, :-1]
+
+
+def solve_lambda(p_priv, p_pub, cap, max_iter=20, alpha=ALPHA):
+    """find_lambda, batched over rows: identical decisions (tol 1e-6 is reached at iter 20).
+    lambda = 1 where the private distribution already fits the cap, else the bisection's left end."""
+    lam = torch.ones(p_priv.size(0), device=p_priv.device)
+    over = compute_renyi_divergence_clipped_symmetric(p_priv, p_pub, alpha) > cap
+    if over.any():
+        pp, pq = p_priv[over], p_pub[over]
+        left = torch.zeros(pp.size(0), device=pp.device)
+        right = torch.ones_like(left)
+        for _ in range(max_iter):
+            mid = 0.5 * (left + right)
+            div = compute_renyi_divergence_clipped_symmetric(mid[:, None] * pp + (1 - mid[:, None]) * pq, pq, alpha)
+            bad = div > cap
+            right = torch.where(bad, mid, right)
+            left = torch.where(bad, left, mid)
+        lam[over] = left
+    return lam
+
+
+def group_contribution(priv_logits, pub_logits, tgt, cap):
+    """(lam * p_priv(t) + (1 - lam) * p_pub(t)) per position, and sum of lambdas, for one group."""
+    n = len(tgt)
+    t = torch.tensor(tgt, device=pub_logits.device)
+    out = torch.zeros(n, device=pub_logits.device)
+    lam_sum = 0.0
+    for a in range(0, n, CHUNK):
+        b = min(n, a + CHUNK)
+        p_pub = F.softmax(pub_logits[a:b].float(), dim=-1)
+        p_priv = F.softmax(priv_logits[a:b].float(), dim=-1)
+        lam = solve_lambda(p_priv, p_pub, cap)
+        tt = t[a:b, None]
+        out[a:b] = lam * p_priv.gather(1, tt)[:, 0] + (1 - lam) * p_pub.gather(1, tt)[:, 0]
+        lam_sum += lam.sum().item()
+    return out, lam_sum
+
+
+def plain_logprob(logits, tgt):
+    t = torch.tensor(tgt, device=logits.device)
+    out = torch.empty(len(tgt), device=logits.device)
+    for a in range(0, len(tgt), CHUNK):
+        b = min(len(tgt), a + CHUNK)
+        out[a:b] = F.log_softmax(logits[a:b].float(), dim=-1).gather(1, t[a:b, None])[:, 0]
+    return out
+
+
+def summarize_logprob(lp):
+    """NLL sum and token count, also over the first 900 target tokens (the paper's length cap)."""
+    n900 = min(900, lp.numel())
+    return {"nll_sum": float(-lp.sum()), "n": lp.numel(),
+            "nll_sum_900": float(-lp[:n900].sum()), "n_900": n900}
+
+
+# -- the result tables' runner (fusit.main --ppl) ------------------------------------------------
+
+def _official(tok, text: str) -> str:
+    from fusit.dp_fusion.prompting import official_prompt
+    return official_prompt(tok, text, "_")
+
+
+def mechanism_ppl(model, tok, document: str, masks: Dict[str, Sequence[Sequence[int]]],
+                  caps: Dict[str, Sequence[float]]) -> Dict[str, Dict]:
+    """D teacher-forced under the distribution each method shows the model (verifier/ppl.py):
+    "no_defense" the prompt holding D; every mask in `masks` ({name: spans}) the prompt with those
+    spans' tokens -> "_"; and for `caps` ({mask name: [alpha*beta, ...]}) the single-group
+    DP-Fusion mixture of the two, as "<name>@<cap>" (with its mean lambda)."""
+    from types import SimpleNamespace
+    tgt = tok(document, add_special_tokens=False)["input_ids"]
+    full = target_logits(model, context_ids(tok, _official, document, []), tgt)
+    out = {"no_defense": summarize_logprob(plain_logprob(full, tgt))}
+    for name, spans in masks.items():
+        pub = target_logits(model, context_ids(tok, _official, document,
+                                               [SimpleNamespace(start=s, end=e) for s, e in spans]), tgt)
+        out[name] = summarize_logprob(plain_logprob(pub, tgt))
+        for cap in caps.get(name, []):
+            contrib, lam_sum = group_contribution(full, pub, tgt, cap)
+            out[f"{name}@{cap}"] = {**summarize_logprob(torch.log(contrib.clamp_min(1e-30))),
+                                    "mean_lambda": lam_sum / len(tgt)}
+        del pub
+        torch.cuda.empty_cache()
+    return out
+
+
+def release_ppl(model, tok, document: str, released: str) -> Dict:
+    """D teacher-forced given a released text in the document slot of the same prompt."""
+    tgt = tok(document, add_special_tokens=False)["input_ids"]
+    # no spans to redact: context_ids(..., []) without its locate_document step, which rejects a
+    # text that is empty or occurs twice in the prompt
+    ctx = tok(_official(tok, released), add_special_tokens=False)["input_ids"]
+    return summarize_logprob(plain_logprob(target_logits(model, ctx, tgt), tgt))
+
+
+def ppl_of(summary: Dict) -> float:
+    """exp(mean NLL) of one document; tables report the mean over documents."""
+    return math.exp(summary["nll_sum"] / summary["n"])
+
+
+# -- LEGACY runner: the earlier results/table1 runs only (see the module docstring) --------------
 
 class Scorer:
     def __init__(self, model, tok, chunk: int):
@@ -77,7 +201,7 @@ class Scorer:
         self._hidden: Dict[tuple, torch.Tensor] = {}
 
     def target(self, document: str) -> List[int]:
-        return self.tok(" " + document, add_special_tokens=False)["input_ids"]
+        return self.tok(document, add_special_tokens=False)["input_ids"]      # B3-c: no leading space
 
     def prompt_ids(self, shown: str) -> List[int]:
         return self.tok(format_prompt_new_template(self.tok, shown, "_"), add_special_tokens=False)["input_ids"]
@@ -121,7 +245,7 @@ class Scorer:
             p_out = torch.zeros_like(p_pub)
             for g in groups:
                 p_priv = self._probs(hs[g][s:s + self.chunk])
-                lam = find_lambdas(p_priv, p_pub, ALPHA, cap)
+                lam = solve_lambda(p_priv, p_pub, cap)
                 lam_sum[g] += lam.sum().item()
                 p_out += lam[:, None] * p_priv + (1 - lam)[:, None] * p_pub
                 del p_priv

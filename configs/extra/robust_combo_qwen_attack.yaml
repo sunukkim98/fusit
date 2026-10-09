@@ -1,0 +1,14 @@
+description: >
+  Model-combination robustness (2026-10-07), attack side of combinations 1 and 3: on a copy of the Qwen front-end run
+  (robust_front_qwen.yaml), RPS re-optimized against the attacker for the original, TRACE@1 and ours (ner_att_vcot95
+  @ 0.01 / 0.1), then the attack and the judge on the main table's twelve released texts: No Defense, NER (Presidio)
+  mask, DP-Fusion (Presidio) 0.01 / 0.1, AA@1, TRACE@1, ours 0.01 / 0.1, RPS, TRACE-RPS@1, ours-RPS 0.01 / 0.1.
+  Per attacker: robust_combo{1,3}_*.yaml.
+extends: robust_front_qwen.yaml
+run:
+  skip_attack: false
+  attack_conditions: [no_defense, mask, dp_fusion, trace, aa, rps]
+  rps: true
+  rps_xpriv_conditions: [ner_att_vcot95]
+  attack_template: chat
+  judge: true

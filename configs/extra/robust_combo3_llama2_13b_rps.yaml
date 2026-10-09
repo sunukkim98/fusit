@@ -1,0 +1,11 @@
+description: >
+  Combination 3 (2026-10-08), RPS pass on output/fusit_combo3_llama2_13b after its attack: RPS against Llama-2-13B for
+  the original, TRACE@1 and ours (ner_att_vcot95 @ 0.01 / 0.1) with the official budget on KV-cached probes
+  (2 x 10,000, as combination 1), then the attack and the judge of those four RPS texts only.
+extends: robust_combo3_llama2_13b.yaml
+run:
+  rps_kv_cache: true
+  rps_restarts: 2
+  rps_iterations: 10000
+  attack_conditions: [rps]
+  judge: true

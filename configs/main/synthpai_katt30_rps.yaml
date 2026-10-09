@@ -1,0 +1,9 @@
+description: >
+  RPS on the SynthPAI k_att 30 run (2026-10-07), as rps.yaml: suffix on the original, TRACE@1 and the four
+  paraphrases (R1 1 x 1000, R3 official, R4 full forward), then the rps@ texts evaluated. Run before
+  synthpai_katt30_verifier_levels.yaml on the same output, so RPS covers the main paraphrases only (as the k10 run).
+extends: synthpai_katt30.yaml
+run:
+  rps: true
+  rps_model: models/Llama-3.1-8B-Instruct
+  attack_conditions: [rps]

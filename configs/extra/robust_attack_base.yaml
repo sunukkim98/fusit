@@ -1,0 +1,12 @@
+description: >
+  Model-combination robustness (2026-10-07), attack side: the main implicit table's released texts (No Defense, masks,
+  DP-Fusion ner_both / ner_att_vcot95 at 0.01, TRACE@1, AA@1) attacked by another attacker model. Every earlier
+  stage is reused from the records; only the attack runs. Per attacker: robust_attack_<name>.yaml.
+extends: ../main/implicit.yaml
+run:
+  attack_conditions: [no_defense, mask, dp_fusion, trace, aa]
+  mask_conditions: [ner_both, ner_att_vcot95]
+  xpriv_conditions: [ner_both, ner_att_vcot95]
+  alpha_beta: [0.01]
+  judge: false
+  ppl: false

@@ -14,10 +14,10 @@ Every item carries `.username`, `.text` and `.relevant_pii` (attribute -> ground
 value); the datasets differ only in what an item *is* and in how ground truth is filtered
 (see each class's docstring).
 
-Data files live in `dataset/` at the repo root, resolved relative to this file, so an
-editable install needs no configuration. A built wheel does not ship them (they sit
-outside `src/`), so set FUSIT_DATASET_DIR to point at them there; a missing file raises
-with that instruction rather than a bare FileNotFoundError.
+Data files live in `dataset/`, resolved relative to the working directory (run from the
+repo root, as with the `models/` paths in configs/). Elsewhere, set FUSIT_DATASET_DIR to
+point at them; a missing file raises with that instruction rather than a bare
+FileNotFoundError.
 
 Run `python -m fusit.dataset` for corpus statistics.
 """
@@ -47,9 +47,7 @@ __all__ = [
     "load_dataset",
 ]
 
-DATASET_DIR = Path(
-    os.environ.get("FUSIT_DATASET_DIR", Path(__file__).resolve().parents[2] / "dataset")
-)
+DATASET_DIR = Path(os.environ.get("FUSIT_DATASET_DIR", "dataset"))
 
 
 @dataclass
@@ -445,7 +443,105 @@ class TabECHR(Dataset):
         }
 
 
-_REGISTRY: Dict[str, Type[Dataset]] = {cls.name: cls for cls in (SynthPAI, Synthetic, TabECHR)}
+class SynthPAITraceRPS(SynthPAI):
+    """SynthPAI with TRACE-RPS's attack/eval labels (decision A6, 2026-10-04): reviews.human_evaluated
+    mapped through reddit_utils.map_synthpai_to_pii -- so `education_category`, when present,
+    overrides the free-text `education` -- and an attribute counts when hardness >= 1 and
+    certainty >= 1. 1117 (profile, attribute) pairs over all 298 profiles; paper Table 1's 54.52%
+    is 609/1117. The labels the result tables are scored against (attack_eval.data.load_synthpai)."""
+
+    name = "synthpai_tracerps"
+
+    #: map_synthpai_to_pii restricted to keys present in the data, onto fusit keys. Order matters:
+    #: `education_category` comes after `education` in every record, and the later key wins.
+    KEY = {
+        "income_level": "income_level", "income": "income_level",
+        "age": "age",
+        "sex": "sex", "gender": "sex",
+        "city_country": "city_country", "location": "city_country",
+        "birth_city_country": "birth_city_country", "pobp": "birth_city_country",
+        "education": "education", "education_category": "education",
+        "occupation": "occupation",
+        "relationship_status": "relationship_status", "married": "relationship_status",
+    }
+
+    def load(self) -> List[Item]:
+        items = []
+        for r in self._records():
+            mapped = {}
+            for key, val in r["reviews"]["human_evaluated"].items():
+                if key in self.KEY:
+                    mapped[self.KEY[key]] = val
+            labels = {a: str(v["estimate"]) for a, v in mapped.items()
+                      if v["hardness"] >= 1 and v["certainty"] >= 1}
+            if labels:
+                items.append(Item(username=r["username"], text="\n".join(c["text"] for c in r["comments"]),
+                                  relevant_pii=labels))
+        return items
+
+
+class SyntheticTraceRPS(Synthetic):
+    """Synthetic as attack_eval.data.load_synthetic reads it (decision A6): lines "" and " " dropped
+    (load_synthetic_profile), every record but feature == "income" kept, label str(personality[feature])."""
+
+    name = "synthetic_tracerps"
+
+    def load(self) -> List[Item]:
+        items = []
+        for idx, r in enumerate(self._records()):
+            feature = r["feature"]
+            if feature == "income":
+                continue
+            items.append(SyntheticItem(
+                username=f"syn{idx:04d}-{feature}",
+                text="\n".join(s for s in r["response"].split("\n") if s not in ("", " ")),
+                relevant_pii={feature: str(r["personality"][feature])},
+                hardness=int(r.get("hardness", 0)),
+            ))
+        return items
+
+
+class TabOfficial(Dataset):
+    """The explicit experiment's corpus: DP-Fusion-DPI's own 100 TAB-ECHR documents, exactly as the
+    official code (dataset/dpfusion_official/{DP-FUSION_Defense.py, Attack.py}) builds them --
+    input.json[0:100], each document's lines joined with " " (every line followed by one), cut
+    before the line that would pass MAX_CHARS, private spans = the entry's `private_entities`
+    (all eight TAB types), de-duplicated per (start, end, type) as Attack.py does. Moved from
+    scripts/table1/official.py `load_docs` (2026-10-04). Items are `TabDocument`s (no attribute
+    labels); `paragraphs` holds each line's (start, end)."""
+
+    name = "tab"
+    filename = "dpfusion_official/input.json"
+    MAX_CHARS = 10000
+    N_DOCS = 100
+
+    def load(self) -> List[TabDocument]:
+        if not self.path.exists():
+            raise FileNotFoundError(f"{self.name} data not found at {self.path}; see dataset/README.md")
+        docs = []
+        for idx, entry in enumerate(json.loads(self.path.read_text())[: self.N_DOCS]):
+            text, off, spans, seen, paras = "", 0, [], set(), []
+            ents = entry["private_entities"]
+            for i, line in enumerate(entry["passage"]):
+                if off + len(line) + 1 > self.MAX_CHARS:
+                    break
+                paras.append((off, off + len(line)))
+                for x in (ents[i] if i < len(ents) else []):
+                    s, e = x["offset"]
+                    key = (s + off, e + off, x["type"])
+                    if key not in seen:
+                        seen.add(key)
+                        spans.append(Span(key[0], key[1], x["type"], x["text"]))
+                text += line + " "
+                off += len(line) + 1
+            doc = TabDocument(username=f"dpf{idx:03d}", text=text, spans=spans)
+            doc.paragraphs = paras
+            docs.append(doc)
+        return docs
+
+
+_REGISTRY: Dict[str, Type[Dataset]] = {cls.name: cls for cls in (SynthPAI, Synthetic, TabECHR, SynthPAITraceRPS,
+                                                                  SyntheticTraceRPS, TabOfficial)}
 DATASETS = tuple(_REGISTRY)
 
 _instances: Dict[str, Dataset] = {}

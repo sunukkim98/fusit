@@ -39,6 +39,44 @@ def is_functional_word(word: str) -> bool:
     return (not stripped) or stripped in FUNCTIONAL_WORDS
 
 
+def occurrences(text: str, s: str) -> List[List[int]]:
+    """Every case-insensitive occurrence of `s` in `text`, word-bounded where `s` starts/ends
+    with a word character."""
+    if not s:
+        return []
+    pat = (r"(?<!\w)" if s[0].isalnum() else "") + re.escape(s) + (r"(?!\w)" if s[-1].isalnum() else "")
+    return [[m.start(), m.end()] for m in re.finditer(pat, text, flags=re.I)]
+
+
+def match_quote(quote: str, text: str, threshold: float = 90):
+    """(kind, score, [start, end] or None) of a model's quote in `text`: exact (case-insensitive),
+    else the best rapidfuzz partial_ratio alignment if it scores >= threshold -- decision (a): a
+    local model rarely quotes verbatim, and exact, case-sensitive matching drops many quotes."""
+    from rapidfuzz import fuzz
+
+    # str.lower() can lengthen a character ("İ" -> "i̇"), so offsets found in the lowered text are
+    # mapped back through `orig` (2026-10-04: TAB-ECHR has such names; Synthetic / SynthPAI have none)
+    low, orig = _lowered(text)
+    q = quote.lower()
+    i = low.find(q)
+    if i >= 0:
+        return "exact", 100.0, [orig[i], orig[i + len(q) - 1] + 1]
+    al = fuzz.partial_ratio_alignment(q, low)
+    if al is not None and al.score >= threshold:
+        return "fuzzy", float(al.score), [orig[al.dest_start], orig[al.dest_end - 1] + 1]
+    return "none", float(al.score) if al is not None else 0.0, None
+
+
+def _lowered(text: str):
+    """(text.lower(), index of the original character behind each lowered character)."""
+    parts, orig = [], []
+    for k, ch in enumerate(text):
+        lc = ch.lower()
+        parts.append(lc)
+        orig.extend([k] * len(lc))
+    return "".join(parts), orig
+
+
 def coverage(text: str, spans: List[List[int]]) -> float:
     """Fraction of `text` the spans cover, after merging overlaps."""
     if not text:
@@ -154,7 +192,18 @@ def oracle_all_content(text: str) -> List[List[int]]:
     return merge_spans(content_word_spans(text))
 
 
+def mask_lines(text: str, spans: List[List[int]], placeholder: str = "_") -> str:
+    """`redact`, but line breaks inside a span are kept, so comments stay one per line -- the
+    result tables' mask-only rows ("_" masking, decision 2026-10-04; verifier/table.py `masked`
+    until then)."""
+    m = list(redact(text, spans, placeholder))
+    for k, ch in enumerate(text):
+        if ch == "\n":
+            m[k] = "\n"
+    return "".join(m)
+
+
 __all__ = [
-    "WORD_RE", "content_word_spans", "coverage", "is_functional_word", "merge_spans",
-    "oracle_all_content", "random_spans_matched", "redact",
+    "WORD_RE", "content_word_spans", "coverage", "is_functional_word", "mask_lines", "match_quote", "merge_spans",
+    "occurrences", "oracle_all_content", "random_spans_matched", "redact",
 ]

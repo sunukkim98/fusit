@@ -1,0 +1,14 @@
+description: >
+  V_att through the verifier on TAB (2026-10-06), k_att 10, on a copy of the TAB full run: --verify-att scores
+  the V_att words as units (only they; null words, thresholds and V_cot decisions stay), --decide builds
+  ner_vatt_vcot<level> (V_att and V_cot verified) and ner_vatt_cot<level> (V_att verified, V_cot whole), both
+  masked and paraphrased at the main table's alpha*beta and attacked with DP-Fusion's official attack.
+  Stage A: add `--stop-after verify`; then `--decide` over every shard; then the same command without it.
+extends: ../main/tab.yaml
+run:
+  verify_att: true
+  xpriv_conditions: [ner_vatt_vcot95, ner_vatt_cot95]
+  attack_conditions: [mask, dp_fusion]
+  mask_conditions: [ner_vatt_vcot95, ner_vatt_cot95]
+xpriv:
+  verified_att: true

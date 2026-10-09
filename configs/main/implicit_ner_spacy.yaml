@@ -1,0 +1,18 @@
+description: >
+  NER (spaCy) mask baseline on the implicit datasets (2026-10-05), in its own output: spaCy NER only, then
+  verify + --decide only so that X_priv conditions exist (ner_only = the spaCy spans; no V_cot units, so
+  the verifier scores just the null words of closed attributes), then the "_" mask of ner_only attacked,
+  judged and scored for PPL. No TRACE@1, no paraphrase (alpha_beta empty: nothing to paraphrase).
+  Stage A: add `--stop-after verify`; then `--decide` over every shard; then the same command without it.
+extends: implicit.yaml
+run:
+  sources: [ner]
+  ner_backend: spacy
+  trace: false
+  xpriv_conditions: []
+  alpha_beta: []
+  attack_conditions: [mask]
+  mask_conditions: [ner_only]
+xpriv:
+  verified_levels: []
+  controls: []

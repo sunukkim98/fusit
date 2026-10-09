@@ -1,0 +1,46 @@
+description: >
+  Implicit main run (Synthetic, SynthPAI; 2026-10-04). TRACE cues (NER = Presidio) -> verifier -> TRACE@1,
+  DP-Fusion on X_priv (ours) and verified X_priv (ours + Verifier), then the result tables' evaluation.
+  Per job on the command line: --dataset, --num-shards / --shard-index, --output.
+  Stage A: add `--stop-after verify`; then `--decide` over every shard; then the same command without it.
+
+run:
+  labels: tracerps                       # TRACE-RPS's attack/eval labels (decision A6)
+  n_items: 0                             # the whole corpus
+  # cue tagger (TRACE)
+  sources: [ner, cot, att]
+  ner_backend: presidio                  # Presidio + dslim/bert-base-NER, as DP-Fusion A.16
+  tagger_model: models/Llama-2-7b-chat-hf
+  k_att: {synthetic: 10, synthpai: 30, tab: 10}   # TRACE's per-dataset values (2026-10-09)
+  cue_strip_system: true                 # decision (b)
+  quote_match: fuzzy                     # decision (a)
+  chain_max_new: 1024
+  fit_context: true                      # decision T8
+  # verifier
+  verify: true
+  verifier_model: models/Llama-2-7b-chat-hf
+  # TRACE@1
+  trace: true
+  anonymizer_model: models/Qwen2.5-7B-Instruct
+  # DP-Fusion
+  xpriv_conditions: [ner_both, ner_att_vcot95]
+  alpha_beta: [0.01, 0.1]
+  prompt: official                       # decision D9
+  grouping: single
+  length_ratio: 1.5
+  budget_rule: ceil
+  seed_rule: item
+  paraphrase_model: models/Qwen2.5-7B-Instruct
+  # evaluation (the result tables' protocol)
+  attack_conditions: [mask, dp_fusion, trace]
+  mask_conditions: [ner_both, ner_att_vcot95]
+  attacker_model: models/Llama-3.1-8B-Instruct
+  judge: true
+  judge_model: models/Llama-3.1-8B-Instruct
+  judge_max_batch_tokens: 12000
+  ppl: true
+  ppl_model: models/Qwen2.5-7B-Instruct
+
+xpriv:
+  verified_levels: [95, 90, 85, 80]
+  controls: []

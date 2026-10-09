@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Sequence
 from fusit.dp_fusion.prompting import format_prompt_new_template
 from fusit.utils import replace_sequences_with_placeholder_fast
 
-__all__ = ["build_aligned_tokens", "build_contexts", "locate_document"]
+__all__ = ["aligned_token_ids", "build_aligned_tokens", "build_contexts", "locate_document"]
 
 
 def locate_document(prompt: str, text: str) -> int:
@@ -97,6 +97,27 @@ def build_contexts(
     if len(set(lengths.values())) != 1:
         raise AssertionError(f"context token lengths differ, breaking the guarantee: {lengths}")
     return groups
+
+
+def aligned_token_ids(tokenizer, prompt: str, text: str, offsets: Sequence[Sequence[int]],
+                      placeholder: str = "_"):
+    """`(private_ids, public_ids)` for an already-built `prompt` that holds `text` once:
+    `offsets` are `[start, end]` character spans into `text`, and every token of the prompt that
+    overlaps one becomes the placeholder in `public_ids`. Equal length is checked.
+
+    The single-group construction every experiment uses (verifier.dpfusion, scripts/table1,
+    verifier.infill), whatever prompt template they pass in.
+    """
+    start = locate_document(prompt, text)
+    private = tokenizer(prompt, add_special_tokens=False)["input_ids"]
+    offs = [[start + s, start + e] for s, e in offsets]
+    public = _redact(prompt, offs, placeholder, tokenizer) if offs else list(private)
+    if len(private) != len(public):
+        raise AssertionError(
+            f"private/public token counts differ ({len(private)} vs {len(public)}), "
+            "breaking the length-leakage guarantee."
+        )
+    return private, public
 
 
 def build_aligned_tokens(

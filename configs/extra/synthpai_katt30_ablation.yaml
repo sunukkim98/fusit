@@ -1,0 +1,18 @@
+description: >
+  X_priv component ablation and the RQ3 controls on a copy of the SynthPAI k_att 30 run (2026-10-07), as
+  implicit_ablation.yaml (the non-cue control was dropped on 2026-10-07; its conditions were built, not evaluated). --decide with this config builds
+  the controls (coverage matched to ner_att_vcot95, seeds 0-2); masked and paraphrased at alpha*beta 0.01 / 0.1.
+extends: ../main/synthpai_katt30.yaml
+run:
+  xpriv_conditions: &abl [ner_only, ner_att, ner_cot, ner_both, ner_att_vcotwords,
+                          ner_att_vcotrand95_s0, ner_att_vcotrand95_s1, ner_att_vcotrand95_s2,
+                          random_cov95_s0, random_cov95_s1, random_cov95_s2,
+                          ner_att_vcot95]
+  alpha_beta: [0.01, 0.1]
+  attack_conditions: [mask, dp_fusion]
+  mask_conditions: *abl
+xpriv:
+  controls:
+    - {kind: words_all}
+    - {kind: random_doc, levels: [95], seeds: [0, 1, 2]}
+    - {kind: random_vcot, levels: [95], seeds: [0, 1, 2]}

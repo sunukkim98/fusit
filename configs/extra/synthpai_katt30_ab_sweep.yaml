@@ -1,0 +1,9 @@
+description: >
+  alpha*beta sweep on a copy of the SynthPAI k_att 30 run (2026-10-07), as implicit_ab_sweep.yaml (floats on purpose:
+  config values skip argparse's type=float).
+extends: ../main/synthpai_katt30.yaml
+run:
+  xpriv_conditions: [ner_only, ner_both, ner_att_vcot95]
+  alpha_beta: [0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, .inf]
+  attack_conditions: [mask, dp_fusion]
+  mask_conditions: [ner_only, ner_both, ner_att_vcot95]
