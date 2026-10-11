@@ -32,7 +32,7 @@ def is_content(token: str, core_str: str) -> bool:
 #: the order attributes are tagged and scored in (the attack harness's)
 ATTRIBUTE_ORDER = ["income_level", "age", "sex", "education", "relationship_status", "occupation",
                    "city_country", "birth_city_country"]
-#: random content words per (item, attribute), shared by its units
+#: random content words per (item, attribute), shared by its units; the default of --verify-null
 NULL_PER_PAIR = 20
 
 
@@ -85,7 +85,8 @@ def att_units(text: str, words, cot_units: List[dict]) -> List[dict]:
 
 
 def null_words(text: str, dataset: str, item_id: str, attribute: str, n: int = NULL_PER_PAIR) -> List[str]:
-    """`n` distinct content words of D drawn at random (seed crc32(dataset, item, attribute, "null"))."""
+    """`n` distinct content words of D drawn at random (seed crc32(dataset, item, attribute, "null")); `n` is
+    --verify-null (2026-10-10), each n its own draw."""
     pool = sorted({w.lower(): w for _, _, w in content_words(text)}.items())
     rng = random.Random(seed_for(dataset, item_id, attribute, "null"))
     pick = rng.sample(pool, min(n, len(pool)))

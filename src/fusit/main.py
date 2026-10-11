@@ -174,6 +174,9 @@ def build_parser() -> argparse.ArgumentParser:
     ver.add_argument("--verify-att", action="store_true",
                      help="also score the V_att words as units (2026-10-06); on an output verified without them "
                           "only the V_att units are scored and added, so thresholds and V_cot decisions stay")
+    ver.add_argument("--verify-null", type=int, default=20, metavar="N",
+                     help="null words per (item, attribute) the thresholds are set from (2026-10-10): stage 2 "
+                          "draws and scores N; --decide checks the outputs were scored with the same N")
     ver.add_argument("--decide", type=Path, nargs="+", default=None, metavar="JSONL",
                      help="no stage runs: pool the verify scores of these outputs (every shard of a "
                           "dataset), set the null thresholds and decisions, and write each record's "
@@ -448,7 +451,7 @@ STAGE_CONFIG = {
 OPTIONAL_CONFIG = {
     "tag": {"ner_score_threshold": 0.0, "labels": "fusit", "cue_strip_system": False, "quote_match": "exact",
             "fuzzy_threshold": 90, "chain_max_new": 500, "fit_context": False},
-    "verify": {"verify_att": False},
+    "verify": {"verify_att": False, "verify_null": 20},
     "rps": {"rps_think_prefill": True},
     "attack": {"attack_template": "author_llama3", "attack_max_new": 0},
     "paraphrase": {"grouping": "source", "gen_seed": None, "prompt": "fusit", "budget_rule": "fusit",
@@ -625,7 +628,7 @@ def stage_verify(args, items, records: Dict[str, dict]) -> None:
         rec.setdefault("config", {})["verify"] = want
         # null words are seeded by the dataset name, not the label set (verifier.score)
         scores = score_item(model, tok, rec["dataset"], rec["item"], rec["text"], verifier_cues(rec["cues"]),
-                            rec["truth"], att=args.verify_att)
+                            rec["truth"], att=args.verify_att, n_null=args.verify_null)
         rec["verify"] = {"scores": scores}
         write_records(args.output, records)
         log(f"verify {n}/{len(todo)} {rec['item']}: {len(scores['units'])} unit(s), {len(scores['null'])} null "
@@ -718,11 +721,12 @@ def stage_aa(args, items, records: Dict[str, dict]) -> None:
     free_model()
 
 
-def run_decide(paths: Sequence[Path], spec: Optional[dict] = None) -> None:
+def run_decide(paths: Sequence[Path], spec: Optional[dict] = None, n_null: int = 20) -> None:
     """--decide: decisions over the pooled verify scores of `paths`, and every record's X_priv
     conditions (fusit.verifier.xpriv.build_item), written back into its file. Thresholds are
     per (dataset, attribute), so all shards of a dataset must be given together. `spec` is the
-    config's `xpriv` section (which experiment-only conditions to build); None keeps the legacy set."""
+    config's `xpriv` section (which experiment-only conditions to build); None keeps the legacy set.
+    `n_null` (--verify-null): the null word count the outputs must have been scored with."""
     from fusit.verifier.decide import decide_all
     from fusit.verifier.inputs import verifier_cues
     from fusit.verifier.xpriv import build_item
@@ -735,6 +739,10 @@ def run_decide(paths: Sequence[Path], spec: Optional[dict] = None) -> None:
                 raise SystemExit(f"{rec['item']}: no verify scores -- run stage 2 (--verify) first")
             if (spec or {}).get("verified_att") and not rec.get("config", {}).get("verify", {}).get("verify_att"):
                 raise SystemExit(f"{rec['item']}: xpriv.verified_att needs V_att units -- verify with --verify-att first")
+            scored_with = rec.get("config", {}).get("verify", {}).get("verify_null", OPTIONAL_CONFIG["verify"]["verify_null"])
+            if scored_with != n_null:
+                raise SystemExit(f"{rec['item']}: verified with --verify-null {scored_with}, this decide asks for "
+                                 f"{n_null} -- give the same --verify-null, or run stage 2 with {n_null} into a new output")
             for k in rows:
                 rows[k] += rec["verify"]["scores"][k]
     scored, tau = decide_all(rows)
@@ -752,7 +760,8 @@ def run_decide(paths: Sequence[Path], spec: Optional[dict] = None) -> None:
             # and attacks may already have been run on them
             rec["x_priv_conditions"] = {**rec.get("x_priv_conditions", {}), **built}
         write_records(path, recs)
-    log(f"decide: {sum(len(r) for r in files.values())} record(s), {len(scored['units'])} unit(s); thresholds "
+    log(f"decide: {sum(len(r) for r in files.values())} record(s), {len(scored['units'])} unit(s), "
+        f"{n_null} null word(s) per pair; thresholds "
         + ", ".join(f"{k[1]} {v['cond']:.4f}/{v['alone']:.4f}" for k, v in sorted(tau[95].items())))
 
 
@@ -1299,7 +1308,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
     validate(args, parser)
     if args.decide:
-        run_decide(args.decide, cfg.get("xpriv") or None)
+        run_decide(args.decide, cfg.get("xpriv") or None, n_null=args.verify_null)
         return 0
     if args.summarize:
         print(summarize(args.summarize))
