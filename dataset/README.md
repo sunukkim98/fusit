@@ -16,9 +16,9 @@ Vendored ground-truth corpora. Data only — the code that reads them is
 ### SynthPAI and synthetic
 
 Both jsonl are copied verbatim from `data/synthetic/` of
-[TRACE-RPS](https://github.com/sunukkim98/TRACE-RPS) at commit `86449226`
+[TRACE-RPS](https://github.com/Jasper-Yan/TRACE-RPS) at commit `8644922`
 (2026-04-06), which carries the SRI Lab / ETH Zurich MIT-licensed SynthPAI material.
-Copied 2026-09-16; unmodified, so the md5s above still match upstream.
+Unmodified, so the md5s above match upstream.
 
 ## TAB-ECHR
 
@@ -29,29 +29,14 @@ judgments from the
 licensed; `tab_echr/LICENSE.txt` and `tab_echr/guidelines.md` are kept here alongside it.
 
 **The three splits are gitignored** — 70 MB of json is too much to carry in the repo — so
-this is the one corpus you have to fetch. Two ways:
-
-**1. Our Drive copy** —
-<https://drive.google.com/file/d/14oTnnNoSlJy6z9__BfpzTebYTu2-ePwT/view>
-
-Open that link and download, or from a shell:
-
-```bash
-pip install gdown
-gdown 14oTnnNoSlJy6z9__BfpzTebYTu2-ePwT
-```
-
-Then put the three `echr_*.json` inside `dataset/tab_echr/`, extracting first if the download
-is an archive.
-
-**2. Or straight from upstream:**
+this is the one corpus you have to fetch, from upstream:
 
 ```bash
 git clone https://github.com/NorskRegnesentral/text-anonymization-benchmark
 cp text-anonymization-benchmark/echr_*.json dataset/tab_echr/
 ```
 
-Either way the result should be exactly this, which the md5s in the table above confirm:
+The result should be exactly this, which the md5s in the table above confirm:
 
 ```
 dataset/tab_echr/

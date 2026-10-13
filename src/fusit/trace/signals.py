@@ -216,7 +216,7 @@ def attention_spans(
     when output_attentions=True is passed. But loading the WHOLE model under "eager" broke
     dp_fusion_groups_incremental itself: on Qwen2.5-7B-Instruct's batched incremental-cache
     decoding, eager attention produced NaN fused probabilities (crashed
-    torch.multinomial on the very first SLURM pilot, job 119949) -- independent of dtype
+    torch.multinomial in the first pilot run) -- independent of dtype
     (reproduced in both fp16 and bf16). Root cause not fully chased down; the fix is to keep
     the model on its normal backend for everything else and flip to "eager" only for this
     one plain forward pass, via HF's set_attn_implementation (transformers>=4.48), which
