@@ -1,11 +1,11 @@
-# dpfusion-repro: a pinned environment for running fusit and its experiments.
+# cuepick: a pinned environment for running fusit and its experiments.
 #
 #   conda env create -f environment.yml   # run from the repo root
-#   conda activate dpfusion-repro
+#   conda activate cuepick
 #
 # Linux x86_64 + NVIDIA driver supporting CUDA 12.8 (torch 2.8.0+cu128).
 # fusit itself is installed in editable mode from this checkout (-e .).
-name: dpfusion-repro
+name: cuepick
 channels:
   - defaults
 dependencies:
