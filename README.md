@@ -227,6 +227,23 @@ CuePick has three main hyperparameters. The configs in `configs/main/` hold the 
   `configs/main/implicit_verifier_levels.yaml` runs 90, 85 and 80).
 * $K$: number of attention words per attribute (`--k-att`; 10 for Synthetic and TAB-ECHR, 30 for SynthPAI).
 
+The figures below show how each hyperparameter affects privacy and utility on Synthetic (a) and SynthPAI (b).
+
+<p align="center">
+  <img src="assets/sensitivity_q.png" width="60%" alt="Effect of q on attribute inference accuracy and utility">
+</p>
+<p align="center"><em>Effect of $q$ on attribute inference accuracy (top-1, ↓) and utility (↑). "w/o" is the variant without cue selection.</em></p>
+
+<p align="center">
+  <img src="assets/sensitivity_alpha_beta.png" width="60%" alt="Effect of alpha-beta on average perplexity and average epsilon">
+</p>
+<p align="center"><em>Effect of $\alpha\beta$ on the average perplexity (Avg PPL) and the average $\varepsilon$ (Avg ε) of the paraphrased texts.</em></p>
+
+<p align="center">
+  <img src="assets/sensitivity_k.png" width="60%" alt="Effect of K on attribute inference accuracy and utility">
+</p>
+<p align="center"><em>Effect of $K$ on attribute inference accuracy (top-1, ↓) and utility (↑).</em></p>
+
 The other settings are fixed: $m = 20$ random content words per text and attribute for the thresholds
 (`--verify-null`), Rényi order $\alpha = 2$, $\delta = 10^{-3}$, temperature 1.0, and a maximum
 generation length of $\lceil 1.5 \times |x| \rceil$ tokens.
