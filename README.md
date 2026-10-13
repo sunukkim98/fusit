@@ -16,14 +16,16 @@ cue selection. CuePick consists of three stages:
 
 Optionally, the refusal-inducing suffix of RPS (TRACE-RPS) can be appended to the released text.
 
-> 🖼️ **[Figure needed] Overall process of CuePick** (`assets/overview.png`): cue tagging (finding cue
-> candidates), cue selection (keeping cues that drive inference), and cue-suppressed decoding
-> (paraphrasing with bounded cue influence), with the optional RPS suffix. Same as Figure 1 of the paper.
+<p align="center">
+  <img src="assets/overview.png" width="95%" alt="Overall process of CuePick">
+</p>
+<p align="center"><em>Overall process of CuePick: cue tagging (finding cue candidates), cue selection (keeping cues that drive inference), and cue-suppressed decoding (paraphrasing with bounded cue influence), with the optional RPS suffix. Same as Figure 1 of the paper.</em></p>
 
 The Python package is named `fusit`.
 
 ## 🗂️ Repository Structure
 ```
+├── assets/              # Figures used in this README
 ├── configs/
 │   ├── main/            # Configs of the reported experiments (see configs/README.md)
 │   └── extra/           # Ablations, controls and model-combination runs
@@ -211,10 +213,10 @@ original tokens that are protected, and utility is the mean of readability/10 an
 | NER only | 2.2 / 0.5 | 42.29 / 48.70 | 0.874 / 0.868 |
 
 ### Privacy and utility
-> 🖼️ **[Figure needed] Privacy–utility comparison** (radar chart; Synthetic and SynthPAI): privacy axes
-> are implicit privacy (100 − attribute inference accuracy) and explicit privacy (1 − ASR on TAB-ECHR);
-> utility axes are readability, meaning preservation, SBERT similarity and hallucination-free rate, for
-> CuePick, NER, TRACE, DP-Fusion and AA. Same as Figure 2 of the paper.
+<p align="center">
+  <img src="assets/privacy_utility.png" width="95%" alt="Privacy-utility comparison on Synthetic and SynthPAI">
+</p>
+<p align="center"><em>Privacy–utility comparison on Synthetic (left) and SynthPAI (right). Privacy axes are implicit privacy (100 − attribute inference accuracy) and explicit privacy (1 − ASR on TAB-ECHR); utility axes are readability, meaning preservation, SBERT similarity and hallucination-free rate, for CuePick, NER, TRACE, DP-Fusion and AA. Same as Figure 2 of the paper.</em></p>
 
 ## 📌 Hyperparameters
 CuePick has three main hyperparameters. The configs in `configs/main/` hold the values used in the paper.
