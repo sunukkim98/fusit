@@ -56,12 +56,11 @@ def chat(model, tokenizer, system_prompt: str, user_prompt: str, max_new_tokens:
 
 
 # -- batched greedy generation (the evaluation attack and the utility judge) --------------------
-# Moved from attack_eval/backend.py (2026-10-04), unchanged. HF transformers, left-padded batches,
-# greedy, the model's own generation_config EOS set. Greedy decoding under left padding is
+# HF transformers, left-padded batches, greedy, the model's own generation_config EOS set. Greedy decoding under left padding is
 # deterministic for a fixed batch composition, but fp16 kernels can pick different reduction
 # orders for different batch shapes, so a query's output can differ in rare tokens between batch
 # layouts (on the result tables, 14-25% of attacker answers differ in some token between two
-# layouts of the same texts, flipping about one top-1 hit per row). `make_batches` therefore fixes
+# layouts of the same texts, flipping about one top-1 hit per result-table row). `make_batches` therefore fixes
 # the layout: longest first, fixed limits.
 
 @dataclass

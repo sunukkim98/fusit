@@ -16,13 +16,12 @@ Two templates live here:
 
     official_prompt              the official DP-Fusion-DPI template, verbatim
                                  (DP-FUSION_Defense.py::format_prompt_new_template): instructions
-                                 in the system turn, hard-coded ChatML. Every DP-Fusion run of the
-                                 verifier experiments (implicit table, explicit Table 1, PPL) uses it.
+                                 in the system turn, hard-coded ChatML. The experiments use it
+                                 (--prompt official).
     format_prompt_new_template   fusit's own rendering through the tokenizer's chat template.
-                                 DIFFERS from the official one (decision D9, 2026-10-03): the
-                                 instructions move into the user turn, Qwen's default system prompt
-                                 is added, the typo "as a natural as" is fixed and line breaks change.
-                                 Kept for fusit.main / fusit.perplexity, which were run with it.
+                                 DIFFERS from the official one: the instructions move into the user
+                                 turn, Qwen's default system prompt is added, the typo "as a natural
+                                 as" is fixed and line breaks change (--prompt fusit).
 """
 
 _SENTINEL = "<<<FUSIT_ASSISTANT_PREFILL>>>"

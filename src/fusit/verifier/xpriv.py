@@ -12,19 +12,19 @@ Conditions:
     ner_att_vcotrand{95,90,85,80}_s{seed}          NER u V_att u V_cot word units drawn at random (seed
                                                    0-2) until they add as many chars as the verified
                                                    units of that level do: the coverage-matched control
-                                                   of the verifier's choice (2026-10-05)
+                                                   of the verifier's choice
     random_noncue{level}_s{seed}                   as random_cov, but V_cot (quotes and every occurrence of a
                                                    V_cot word) is out of the pool too: random words that are
-                                                   no cue at all (2026-10-06)
+                                                   no cue at all
     ner_vatt_vcot{level}                           NER u verified V_att words u verified V_cot words
-                                                   (2026-10-06): V_att through the verifier too; needs
+                                                   V_att through the verifier too; needs
                                                    units scored with --verify-att and `verified_att: true`
     ner_vatt_cot{level}                            NER u verified V_att words u every V_cot quote (as
-                                                   ner_both): the V_att-only arm of the 2 x 2 (2026-10-06)
+                                                   ner_both): the V_att-only arm of the 2 x 2
 
 The first two groups are core; the rest are experiment-only and are made only when a config's
 `xpriv` section asks for them (fusit.config). Without a spec, build_item makes LEGACY_SPEC's set.
-Units carry their source ("cot" or "att"; units scored before 2026-10-06 are all V_cot). Every condition
+Units carry their source ("cot" or "att"; units without one are V_cot). Every condition
 but ner_vatt_vcot reads the V_cot units only, so adding V_att units changes none of them.
 """
 
@@ -129,8 +129,8 @@ def random_units(units: List[dict], base: List[List[int]], want: int, seed: int)
     return merge_spans(out)
 
 
-#: What build_item made before configs existed (2026-10-05): every decided level, the all-words
-#: condition and the document-wide random control at @95. Used when no `xpriv` spec is given.
+#: The default set when no `xpriv` spec is given: every decided level, the all-words condition
+#: and the document-wide random control at @95.
 LEGACY_SPEC = {"verified_levels": None,
                "controls": [{"kind": "words_all"}, {"kind": "random_doc", "levels": [95], "seeds": list(RANDOM_SEEDS)}]}
 LEVELS = (95, 90, 85, 80)

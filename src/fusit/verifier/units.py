@@ -4,7 +4,7 @@ V_cot quotes -> content-word units, and the null words a unit is compared agains
 A unit is a content word inside a V_cot quote of one (item, attribute): a whitespace token with
 its edge punctuation stripped, stopwords / bare punctuation skipped (V_att's rule, is_content),
 deduplicated case-insensitively. Its positions are every occurrence in D (word_positions).
-With --verify-att (2026-10-06) the attribute's V_att words become units by the same rule (att_units).
+With --verify-att the attribute's V_att words become units by the same rule (att_units).
 """
 
 import random
@@ -69,7 +69,7 @@ def word_units(text: str, cs) -> List[dict]:
 
 
 def att_units(text: str, words, cot_units: List[dict]) -> List[dict]:
-    """[{u_id, text, spans, source="att"}] from one attribute's V_att words (2026-10-06): each word's core
+    """[{u_id, text, spans, source="att"}] from one attribute's V_att words: each word's core
     (edge punctuation stripped), content words only, every occurrence in D -- the same unit rule as V_cot's.
     A word that is already a V_cot unit of the attribute is left to that unit (one unit, one decision).
     u_ids continue after `cot_units`."""
@@ -86,7 +86,7 @@ def att_units(text: str, words, cot_units: List[dict]) -> List[dict]:
 
 def null_words(text: str, dataset: str, item_id: str, attribute: str, n: int = NULL_PER_PAIR) -> List[str]:
     """`n` distinct content words of D drawn at random (seed crc32(dataset, item, attribute, "null")); `n` is
-    --verify-null (2026-10-10), each n its own draw."""
+    --verify-null."""
     pool = sorted({w.lower(): w for _, _, w in content_words(text)}.items())
     rng = random.Random(seed_for(dataset, item_id, attribute, "null"))
     pick = rng.sample(pool, min(n, len(pool)))

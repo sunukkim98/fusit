@@ -1,22 +1,20 @@
 """
-Running DP-Fusion on one document: the call every experiment makes (implicit table
-verifier.dpfusion, explicit Table 1 scripts/table1/paraphrase.py, TAB verifier rows
-verifier.explicit), in one place.
+Running DP-Fusion on one document, as every experiment calls it.
 
     generate_single_group   m = 1: "PRIVATE" reveals X_priv, "PUBLIC" hides it (equal-length ids
                             from contexts.aligned_token_ids); one cap alpha*beta
-    generate_multi_group    m groups, every group the same cap (paper Table 1 multi-group)
+    generate_multi_group    m groups, every group the same cap
     epsilon_single_group    (eps, delta) of a run, Theorem 4 with m = 1
 
-Decisions recorded against the official DP-Fusion-DPI code (DP-FUSION_Defense.py), 2026-10-03:
-    D1  distributions are softmaxed in float32 (fusion.py); the official code softmaxes fp16 logits
-    D2  no fp16 cast of the KV cache (`half_past`): the model runs in fp16, so it is a no-op
-    D3  the first forward keeps the last position's logits only (memory; same tokens)
-    D4  epsilon follows the paper -- Algorithm 1 bounds D_alpha by alpha*beta and Theorem 4 is
-        written in beta, so an observed divergence d enters as beta = d / alpha. The official
-        code passes d itself as beta, which reports epsilon alpha times larger.
-    Shared with the official code: the first generated token's lambda / divergence is not
-    recorded, so epsilon covers tokens 2..T.
+Differences from the official DP-Fusion-DPI code (DP-FUSION_Defense.py):
+    - distributions are softmaxed in float32 (fusion.py); the official code softmaxes fp16 logits
+    - no fp16 cast of the KV cache: the model already runs in fp16, so it would be a no-op
+    - the first forward keeps only the last position's logits (less memory, same tokens)
+    - epsilon follows the paper: Algorithm 1 bounds D_alpha by alpha*beta and Theorem 4 is
+      written in beta, so an observed divergence d enters as beta = d / alpha. The official
+      code passes d itself as beta, which reports epsilon alpha times larger.
+As in the official code, the first generated token's lambda / divergence is not recorded, so
+epsilon covers tokens 2..T.
 """
 
 import torch
@@ -53,5 +51,5 @@ def generate_multi_group(model, tokenizer, groups_ids, ab, seed, max_new_tokens,
 
 
 def epsilon_single_group(divergences, ab, alpha=2.0, delta=1e-3):
-    """fusit compute_epsilon_single_group with beta = ab / alpha (decision D4)."""
+    """compute_epsilon_single_group with beta = ab / alpha (see the module docstring)."""
     return compute_epsilon_single_group(divergences, alpha=alpha, delta=delta, beta=ab / alpha)

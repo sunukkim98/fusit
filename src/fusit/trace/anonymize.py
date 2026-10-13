@@ -27,34 +27,26 @@ Where this departs from the reference code, and why:
   fix call cannot run as published either: utils.py imports
   `fix_response_user_prompt_with_certainty`, which prompts.py does not define.)
 
-Decisions recorded against the official code (2026-10-04), shared with the experiment scripts
-(verifier/trace_rows.py, scripts/table1/trace_defense.py):
-    T1  local models: the experiments infer and chain with Llama-2-7B-Chat (implicit, the cue
-        cache) or Qwen2.5-7B (explicit), and rewrite with Qwen2.5-7B, all greedy
-        (official: GPT-4o, temperature 0).
-    T2  the result tables report one round (TRACE@1); the explicit experiment also ran 5.
-    T3  every labelled attribute is analysed and ONE rewrite addresses them all (official: the
-        profile's first attribute only, and only the last attribute's certainty is checked).
-    T4  stop when no attribute is guessed or every certainty <= 2; the implicit table treats a
-        certainty Llama-2 did not write as unknown rather than as 1.
-    T5  the important words of the implicit table are V_att (verifier/cues.py); the explicit
-        experiment uses `attention_spans` (fusit's questions and no BOS, kept as is).
-    T6  attribute names in prompts are `label_of` ("relationship status", "place of birth"),
-        not the reference's keys ("relationship_status", "birth_city_country").
-    T8  generation lengths are the callers' (see their docstrings), not GPT's 2000/500.
-    T9  inference answers are read by fusit's lenient parser, no fix call (above).
-    T11 the rewrite is parsed by the official rule plus two exceptions (`parse_anonymized`).
-    V-j `clean_chain` strips the answer before the official rule: Llama-2's chains start with a
-        space (" Inference Chain:\n..."), so the official startswith never removed the header
-        (0 of the implicit table's 1684 chains; all 1684 once stripped).
-    TJ-1 the rewrite addresses the attributes still guessed with certainty above 2 -- the official
-        stop rule applied per attribute; a certainty the answer does not state counts as above 2
-        (T4, `stated_certainty`).
-    TJ-2 several attributes in one prompt are told apart: each inference opens with
-        "Type: <label>" and each chain with "[<label>]" (verifier/trace_rows.py's layout).
-    TJ-3 every guess goes to the prompt, as the official code passes the guess string whole.
-    TJ-4 the rewrite may generate max(2000, tokens(D) + 512) tokens (`rewrite_budget`), so a long
-        SynthPAI profile is not cut (GPT's 2000 in the official code).
+Further differences from the official code:
+    - local models: the inference model (Llama-2-7B-Chat in the main setting) infers and writes the
+      chains, Qwen2.5-7B-Instruct rewrites, all greedy (official: GPT-4o, temperature 0).
+    - the experiments report one round (TRACE@1).
+    - stop when no attribute is guessed or every certainty <= 2; a certainty the model did not
+      write is treated as unknown rather than as 1.
+    - attribute names in prompts are `label_of` ("relationship status", "place of birth"),
+      not the reference's keys ("relationship_status", "birth_city_country").
+    - generation lengths are the callers' (see their docstrings), not GPT's 2000/500.
+    - the rewrite is parsed by the official rule plus two exceptions (`parse_anonymized`).
+    - `clean_chain` strips the answer before the official rule: Llama-2's chains start with a
+      space (" Inference Chain:\n..."), so the official startswith never removed the header.
+    - the rewrite addresses the attributes still guessed with certainty above 2 -- the official
+      stop rule applied per attribute; a certainty the answer does not state counts as above 2
+      (`stated_certainty`).
+    - several attributes in one prompt are told apart: each inference opens with "Type: <label>"
+      and each chain with "[<label>]".
+    - every guess goes to the prompt, as the official code passes the guess string whole.
+    - the rewrite may generate max(2000, tokens(D) + 512) tokens (`rewrite_budget`), so a long
+      SynthPAI profile is not cut (GPT's 2000 in the official code).
 """
 
 import re
@@ -78,12 +70,12 @@ MAX_ROUNDS = 5
 #: trace.py stops once `inference['certainty'] <= 2`.
 CERTAINTY_STOP = 2
 
-#: trace.py's GPT generation length; the floor of `rewrite_budget` (TJ-4).
+#: trace.py's GPT generation length; the floor of `rewrite_budget`.
 REWRITE_MIN_NEW = 2000
 
 def clean_chain(response: str) -> str:
     """trace.py `privacy_leakage_chain`'s post-processing of the chain answer, with the answer
-    stripped first (decision V-j)."""
+    stripped first (see the module docstring)."""
     response = response.replace("*", "").replace("#", "").strip()
     if response.startswith("Inference Chain:\n"):
         response = response[len("Inference Chain:\n"):].strip()
@@ -92,7 +84,7 @@ def clean_chain(response: str) -> str:
 
 def is_word_list(s: str) -> bool:
     """One line of at least three comma-separated items of at most three words each -- the
-    important-words list (T11-b), not a rewrite of comments."""
+    important-words list, not a rewrite of comments."""
     s = s.strip()
     if not s or "\n" in s:
         return False
@@ -105,24 +97,18 @@ def parse_anonymized(response: str, text: str):
     "Comments:" and anything from "Inference for comments:" on removed; the input `text`
     unchanged when there is no '#'. Returns (released text, parsed).
 
-    Decision T11 (2026-10-04): the official rule plus ONE exception. On the implicit table's
-    822 Qwen2.5 rewrites (verifier/out/trace):
-      - APPLIED: nothing after the '#'. Qwen sometimes writes the anonymized comments first and
-        ends with a lone '#' (the order the prompt asks for reversed; 99 rewrites, the '#' the
-        last character in every one). The official rule, written for GPT, would release an
+    The official rule plus two exceptions, for answer shapes of Qwen2.5 that the rule, written
+    for GPT, mishandles:
+      - nothing after the '#'. Qwen sometimes writes the anonymized comments first and ends with
+        a lone '#' (the order the prompt asks for reversed). The official rule would release an
         empty string; the text before the '#' -- the rewrite itself -- is released instead.
-      - NOT applied: the prompt restated after the '#' ("Below I give you a set of comments
-        from a user", then "Comments:" and the text, then another '#'; 30 rewrites). The
-        official rule releases it, instructions included (fusit's `rewrite` cut it back to
-        the first comments block until 2026-10-04).
-    The explicit experiment's 501 rewrites (scripts/table1/trace_defense.py) hit neither.
-
-    Decision T11-b (2026-10-04): a second exception. Qwen also writes the rewrite first and puts
-    the prompt's important-words list after the '#' (24 of the implicit table's 823 rewrites;
-    33 of 140 in the fusit.main sample of 2026-10-04); the official rule releases the word list.
-    When what follows the '#' is such a list (`is_word_list`) AND the text before it is at least
-    half as long as the input -- a rewrite, not a one-line explanation of the changes -- the text
-    before the '#' is released instead."""
+      - the prompt's important-words list after the '#'. Qwen also writes the rewrite first and
+        then the word list; the official rule would release the word list. When what follows
+        the '#' is such a list (`is_word_list`) AND the text before it is at least half as long
+        as the input -- a rewrite, not a one-line explanation of the changes -- the text before
+        the '#' is released instead.
+    A restated prompt after the '#' ("Below I give you a set of comments from a user", ...) is
+    left to the official rule, which releases it, instructions included."""
     lines = response.splitlines()
     if lines and "explanation" in lines[0].lower():
         response = "\n".join(lines[1:]).strip()
@@ -130,9 +116,9 @@ def parse_anonymized(response: str, text: str):
         return text, False
     before, after = response.split("#", 1)
     anonymized = after.strip()
-    if not anonymized and before.strip():          # the T11 exception
+    if not anonymized and before.strip():          # nothing after the '#'
         anonymized = before.strip()
-    elif is_word_list(anonymized) and len(before.strip()) >= len(text) / 2:     # T11-b
+    elif is_word_list(anonymized) and len(before.strip()) >= len(text) / 2:     # word list after the '#'
         anonymized = before.strip()
     if anonymized.startswith("Comments:\n"):
         anonymized = anonymized[len("Comments:\n"):]
@@ -174,9 +160,9 @@ def analyze(text: str, attributes: Sequence[str], model, tokenizer, k: int) -> D
 def stated_certainty(response: Optional[str]) -> Optional[int]:
     """The certainty the guess answer states (its last "Certainty:" line with a digit, as
     fusit.trace.parsing reads it), or None when it states none -- where the parser falls back
-    to 1 (decision T4)."""
+    to 1."""
     if response is None:
-        raise ValueError("no guess answer stored; tag again (records from before 2026-10-04 lack it)")
+        raise ValueError("no guess answer stored; tag again (older records lack it)")
     found = None
     for line in response.replace("*", "").replace("#", "").splitlines():
         line = line.strip().lstrip("-*\u2022 \t")
@@ -216,9 +202,9 @@ def needs_rewrite(analysis: Dict[str, Dict]) -> bool:
 def rewrite(text: str, analysis: Dict[str, Dict], model, tokenizer, max_new_tokens: int) -> Dict:
     """One round's anonymizer side. Returns {text, raw, parsed}; `parsed` is False when the
     response had no `#` separator, in which case `text` is the input unchanged -- trace.py's
-    behaviour, which also ends the loop. Parsed by `parse_anonymized` (official rule, T11)."""
+    behaviour, which also ends the loop. Parsed by `parse_anonymized`."""
     active = {attr: a for attr, a in analysis.items() if "chain" in a}
-    # TJ-2: label each attribute's inference and chain; TJ-3: every guess
+    # label each attribute's inference and chain; pass every guess
     inference = "\n\n".join(f"Type: {label_of(attr)}\n{a['inference']}\nGuess: {'; '.join(a['guesses'])}"
                             for attr, a in active.items())
     words: List[str] = []
@@ -245,11 +231,11 @@ def aa_inference_string(analysis: Dict[str, Dict]) -> str:
 
 
 def aa_rewrite(text: str, analysis: Dict[str, Dict], model, tokenizer, max_new_tokens: int) -> Dict:
-    """AA@1 (2026-10-06): one round of Staab et al.'s adversarial anonymization -- the anonymizer sees the
+    """AA@1: one round of Staab et al.'s adversarial anonymization -- the anonymizer sees the
     comments and the inferences only (no V_att words, no chain), with AA's own prompt (prompt_level 3).
     The inferences are the tag stage's (`analysis_from_cues`), as TRACE@1's; generation (greedy) and parsing
-    (`parse_anonymized`) are TRACE@1's, so the two rewriting defenses differ only in what they are told
-    (decision AA-1). Returns {text, raw, parsed}."""
+    (`parse_anonymized`) are TRACE@1's, so the two rewriting defenses differ only in what they are told.
+    Returns {text, raw, parsed}."""
     response = chat(model, tokenizer, AA_SYSTEM_PROMPT, aa_user_prompt(text, aa_inference_string(analysis)),
                     max_new_tokens=max_new_tokens)
     anonymized, parsed = parse_anonymized(response, text)

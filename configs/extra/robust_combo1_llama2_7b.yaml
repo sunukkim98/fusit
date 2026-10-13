@@ -1,4 +1,3 @@
-description: Combination 1 (2026-10-07) -- Qwen2.5-7B front end, Qwen2.5-7B paraphrase, attack Llama-2-7B-Chat.
 extends: robust_combo_qwen_attack.yaml
 run:
   attacker_model: models/Llama-2-7b-chat-hf

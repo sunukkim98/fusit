@@ -2,8 +2,8 @@
 Stored per-token log-probs (fusit.verifier.score) -> distributions, S_cond / S_alone, null
 thresholds and decisions. CPU only.
 
-The scoring norm is per attribute: closed attributes use "sum" (as registered); open attributes
-use "mean" (chosen at the gate).
+The scoring norm is per attribute: closed attributes use "sum"; open attributes use "mean", which
+reduces the bias toward short candidate strings.
 """
 
 from collections import defaultdict
@@ -18,7 +18,7 @@ NORM_CLOSED = "sum"
 NORM_OPEN = "mean"
 PCTL_MAIN = 95
 PCTL_SENS = 90
-#: further sensitivity levels (2026-10-04): decision@85, decision@80
+#: further sensitivity levels: decision@85, decision@80
 PCTL_EXTRA = (85, 80)
 
 

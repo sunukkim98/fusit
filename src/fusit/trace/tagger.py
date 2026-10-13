@@ -94,7 +94,7 @@ class CueTagger:
         self.k = k
         self.ner_backend = ner_backend
         self.ner_options = dict(ner_options or {})
-        # decisions (b) and (a) of 2026-10-04, off by default
+        # system-prompt stripping and fuzzy quote matching, off by default
         self.strip_system, self.quote_match, self.fuzzy_threshold = strip_system, quote_match, fuzzy_threshold
         self.chain_max_new, self.fit_context = chain_max_new, fit_context
 

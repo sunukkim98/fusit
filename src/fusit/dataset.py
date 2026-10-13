@@ -190,7 +190,7 @@ class SynthPAI(Dataset):
 
     "Relevant" PII mirrors TRACE-RPS's Profile.get_relevant_pii
     (src/reddit/reddit_types.py): hardness >= 1 and certainty >= 1. Checked empirically:
-    all 298/298 profiles qualify on >=1 attribute under this filter (2026-09-02), so no
+    all 298/298 profiles qualify on >=1 attribute under this filter, so no
     profile is dropped by this criterion alone — it only trims which per-profile attributes
     count as eval targets.
     """
@@ -444,11 +444,11 @@ class TabECHR(Dataset):
 
 
 class SynthPAITraceRPS(SynthPAI):
-    """SynthPAI with TRACE-RPS's attack/eval labels (decision A6, 2026-10-04): reviews.human_evaluated
+    """SynthPAI with TRACE-RPS's attack/eval labels: reviews.human_evaluated
     mapped through reddit_utils.map_synthpai_to_pii -- so `education_category`, when present,
     overrides the free-text `education` -- and an attribute counts when hardness >= 1 and
-    certainty >= 1. 1117 (profile, attribute) pairs over all 298 profiles; paper Table 1's 54.52%
-    is 609/1117. The labels the result tables are scored against (attack_eval.data.load_synthpai)."""
+    certainty >= 1. 1117 (profile, attribute) pairs over all 298 profiles; TRACE-RPS's reported
+    54.52% is 609/1117. The labels the reported results are scored against."""
 
     name = "synthpai_tracerps"
 
@@ -481,7 +481,7 @@ class SynthPAITraceRPS(SynthPAI):
 
 
 class SyntheticTraceRPS(Synthetic):
-    """Synthetic as attack_eval.data.load_synthetic reads it (decision A6): lines "" and " " dropped
+    """Synthetic with TRACE-RPS's attack/eval labels: lines "" and " " dropped
     (load_synthetic_profile), every record but feature == "income" kept, label str(personality[feature])."""
 
     name = "synthetic_tracerps"
@@ -506,8 +506,8 @@ class TabOfficial(Dataset):
     official code (dataset/dpfusion_official/{DP-FUSION_Defense.py, Attack.py}) builds them --
     input.json[0:100], each document's lines joined with " " (every line followed by one), cut
     before the line that would pass MAX_CHARS, private spans = the entry's `private_entities`
-    (all eight TAB types), de-duplicated per (start, end, type) as Attack.py does. Moved from
-    scripts/table1/official.py `load_docs` (2026-10-04). Items are `TabDocument`s (no attribute
+    (all eight TAB types), de-duplicated per (start, end, type) as Attack.py does. Items are
+    `TabDocument`s (no attribute
     labels); `paragraphs` holds each line's (start, end)."""
 
     name = "tab"

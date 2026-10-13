@@ -1,9 +1,3 @@
-description: >
-  Combination 2 (2026-10-07) -- Llama-2-7B front end, Qwen2.5-7B paraphrase (the main run's texts), attack
-  DeepSeek-R1-Distill-Qwen-7B as TRACE-RPS evaluates it (model_template with <think>, greedy, bfloat16) but with the
-  3000-token budget its <think> block needs. The main table's rows without RPS (RPS did not converge on the reasoning
-  model within the 1 x 1000 budget; the RPS rows are left "-"): No Defense, NER (Presidio) mask, DP-Fusion (Presidio)
-  0.01 / 0.1, AA@1, TRACE@1, ours 0.01 / 0.1. Utility is the main table's (same texts). Records: fusit_combo2_deepseek.
 extends: ../main/implicit.yaml
 run:
   attack_conditions: [no_defense, mask, dp_fusion, trace, aa]

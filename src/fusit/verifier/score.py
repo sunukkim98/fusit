@@ -9,7 +9,7 @@ Per (item, attribute) with >= 2 candidates:
 Every condition stores the candidates' per-token log-probs ("tok"), so sum / mean / first-token
 scoring are all derivable without rerunning the model.
 
-V_att words (2026-10-06): score_item(att=True) makes them units too; add_att_units adds them to scores that
+V_att words: score_item(att=True) makes them units too; add_att_units adds them to scores that
 were made without them. The null words are the same either way, so the thresholds do not move.
 """
 
@@ -32,7 +32,7 @@ def score_item(model, tokenizer, dataset: str, item_id: str, text: str, cues: Di
     """{"pairs", "units", "null"} of one item. `cues` are the tag stage's records
     ({attribute: CueTagger.tag record}); `labels` (ground truth) ride along for analysis only.
     `att`: the V_att words are units too (units.att_units), scored like the V_cot ones.
-    `n_null`: null words per (item, attribute) (--verify-null, 2026-10-10)."""
+    `n_null`: null words per (item, attribute) (--verify-null)."""
     labels = labels or {}
     n_tokens = lambda t: len(tokenizer(t, add_special_tokens=False)["input_ids"])  # noqa: E731
     out = {"pairs": [], "units": [], "null": []}

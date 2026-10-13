@@ -1,5 +1,5 @@
 """
-Perplexity of the original document under each Table 1 defence, DP-Fusion's utility metric.
+Perplexity of the original document under each defence, DP-Fusion's utility metric.
 
     python -m fusit.perplexity --dataset synthetic --num-shards 20 --shard-index 0
 
@@ -31,28 +31,23 @@ with the same 20 bisection steps (its 1e-6 tolerance is first met on step 20).
 
 The teacher-forcing primitives below (`context_ids`, `target_logits`, `solve_lambda`,
 `group_contribution`, `plain_logprob`, `summarize_logprob`) are the ones every experiment
-computes perplexity with: scripts/table1/ppl_tf.py, ppl.py and ppl_release.py (explicit
-Table 1) and verifier/ppl.py (implicit table), with the official DP-Fusion-DPI prompt
-(fusit.dp_fusion.official_prompt, decision D9). With it they reproduce the paper's Table 1
-multi-group perplexity, 1.4592 / 1.4264, to four decimals (results/ppl_tf.md).
+computes perplexity with, together with the official DP-Fusion-DPI prompt
+(fusit.dp_fusion.official_prompt). With it they reproduce the paper's multi-group perplexity,
+1.4592 / 1.4264, to four decimals.
 
-Decisions recorded against the paper (2026-10-04; DP-Fusion-DPI has no utility-perplexity code):
-    B3-a  perplexity = exp(mean NLL of D) under the distribution a method shows the model
-          (mechanism) or given its released text in the prompt (release); mean over documents.
-    B3-c  D is tokenized on its own and appended to the prompt -- no leading space. Until
-          2026-10-04 this module forced " " + D; the experiments never did, and without the
-          space the paper's numbers come out (above).
-    B3-d  lambda: `solve_lambda`, the generator's bisection; this module's own `find_lambdas`
-          (the same algorithm) was folded into it on 2026-10-04.
-    E5    (2026-10-04) the result tables' runner (`mechanism_ppl`, `release_ppl`; fusit.main --ppl):
-          the official DP-Fusion-DPI prompt (D9) and ONE private group holding all of X_priv, as
-          the paraphrases were generated -- verifier/ppl.py until 2026-10-04.
+Choices where the paper leaves room (DP-Fusion-DPI has no utility-perplexity code):
+    - perplexity = exp(mean NLL of D) under the distribution a method shows the model
+      (mechanism) or given its released text in the prompt (release); mean over documents.
+    - D is tokenized on its own and appended to the prompt -- no leading space; without the
+      space the paper's numbers come out (above).
+    - lambda: `solve_lambda`, the generator's bisection.
 
 Two runners:
-    `mechanism_ppl` / `release_ppl`                      the result tables' (fusit.main --ppl)
-    `Scorer` + `main` (python -m fusit.perplexity)       LEGACY: the earlier results/table1 runs
-        only (fusit's own prompt, one group per cue source, the A/B naming above). Kept to
-        preserve that code; the main table uses the runner above. Whether to delete it is open.
+    `mechanism_ppl` / `release_ppl`                      the reported results' (fusit.main --ppl):
+        the official DP-Fusion-DPI prompt and ONE private group holding all of X_priv, as the
+        paraphrases were generated
+    `Scorer` + `main` (python -m fusit.perplexity)       an older runner, not used by the reported
+        results (fusit's own prompt, one group per cue source, the A/B naming above)
 """
 
 import argparse
@@ -158,7 +153,7 @@ def _official(tok, text: str) -> str:
 
 def mechanism_ppl(model, tok, document: str, masks: Dict[str, Sequence[Sequence[int]]],
                   caps: Dict[str, Sequence[float]]) -> Dict[str, Dict]:
-    """D teacher-forced under the distribution each method shows the model (verifier/ppl.py):
+    """D teacher-forced under the distribution each method shows the model:
     "no_defense" the prompt holding D; every mask in `masks` ({name: spans}) the prompt with those
     spans' tokens -> "_"; and for `caps` ({mask name: [alpha*beta, ...]}) the single-group
     DP-Fusion mixture of the two, as "<name>@<cap>" (with its mean lambda)."""
@@ -193,7 +188,7 @@ def ppl_of(summary: Dict) -> float:
     return math.exp(summary["nll_sum"] / summary["n"])
 
 
-# -- LEGACY runner: the earlier results/table1 runs only (see the module docstring) --------------
+# -- the older runner, not used by the reported results (see the module docstring) --------------
 
 class Scorer:
     def __init__(self, model, tok, chunk: int):
@@ -201,7 +196,7 @@ class Scorer:
         self._hidden: Dict[tuple, torch.Tensor] = {}
 
     def target(self, document: str) -> List[int]:
-        return self.tok(document, add_special_tokens=False)["input_ids"]      # B3-c: no leading space
+        return self.tok(document, add_special_tokens=False)["input_ids"]      # no leading space
 
     def prompt_ids(self, shown: str) -> List[int]:
         return self.tok(format_prompt_new_template(self.tok, shown, "_"), add_special_tokens=False)["input_ids"]

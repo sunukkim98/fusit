@@ -54,7 +54,7 @@ def _context(model) -> int:
 def chain_pieces(text: str, overhead: int, budget_tokens: int, tokenizer) -> List[Tuple[int, int]]:
     """[(start, end)] of `text`: all of it when it fits `budget_tokens`, else line-bounded pieces
     that each fit (a line alone too long is split on words) -- the cue tagger's way of never
-    cutting a document (decision T8)."""
+    cutting a document."""
     n_tokens = lambda t: _n_tokens(tokenizer, t)  # noqa: E731
     budget = budget_tokens - overhead
     if budget < 64:
@@ -89,17 +89,16 @@ def chain_pieces(text: str, overhead: int, budget_tokens: int, tokenizer) -> Lis
 
 def guess_attribute(text: str, attribute: str, model, tokenizer, return_response: bool = False,
                     strip_system: bool = False, fit_context: bool = False) -> Dict:
-    """The attacker's guess step alone (no privacy-leakage chain) -- reused both as the
-    first half of infer_and_chain (V_cot) and standalone for Q2's implicit-ASR attack
-    against the paraphrased output in repro/synthpai_eval.py.
+    """The attacker's guess step alone (no privacy-leakage chain) -- the first half of
+    infer_and_chain (V_cot), also usable on its own.
 
     return_response: also return the unparsed answer under "response", for callers that
     need to tell a refusal from a guess after the fact (fusit.floor).
     fit_context: never cut the document -- when prompt + 400 new tokens would not fit the context,
-    generate fewer tokens instead of letting `chat` drop the prompt's head (decision T8 for the
-    cue tagger). Off by default.
+    generate fewer tokens instead of letting `chat` drop the prompt's head (the cue tagger's
+    setting). Off by default.
     strip_system: trim the system prompt, as TRACE-RPS's Llama-2 template does ("<<SYS>>\\nYou
-    are ..."); the cue tagger's setting (decision (b)), off for every other caller."""
+    are ..."); the cue tagger's setting, off for every other caller."""
     label = label_of(attribute)
     options = ATTRIBUTE_OPTIONS.get(attribute, "")
     user_prompt = ADVERSARIAL_INFERENCE_QUERY_PROMPT_TEMPLATE.format(
@@ -131,13 +130,14 @@ def infer_and_chain(text: str, attribute: str, model, tokenizer, strip_system: b
     offsets it counts at -- what the verifier reads; evidence_spans is their union.
 
     quote_match="exact": find_phrase_offsets, every case-sensitive verbatim occurrence (as before).
-    quote_match="fuzzy": decision (a) -- the quote is located case-insensitively, else by its best
+    quote_match="fuzzy": a local model rarely quotes verbatim, so the quote is located
+    case-insensitively, else by its best
     rapidfuzz partial_ratio alignment >= fuzzy_threshold (match_quote); the located string, edge
     whitespace trimmed, then counts at every case-insensitive word-bounded occurrence.
-    strip_system: decision (b), as in guess_attribute.
+    strip_system: as in guess_attribute.
     chain_max_new: the chain's generation budget (TRACE's 500; `chat` keeps the prompt's tail when
     prompt + budget would exceed the context, so a larger budget cuts more of a long document).
-    fit_context: never cut the document (decision T8 for the cue tagger): the guess as in
+    fit_context: never cut the document (the cue tagger's setting): the guess as in
     guess_attribute, and a chain prompt that would not fit is run per line-bounded piece of the
     document (chain_pieces), every piece with the same guesses; "chain" is then the pieces'
     chains joined by blank lines and "chain_pieces" lists them. Quotes are located in the whole
@@ -145,7 +145,7 @@ def infer_and_chain(text: str, attribute: str, model, tokenizer, strip_system: b
     label = label_of(attribute)
     parsed = guess_attribute(text, attribute, model, tokenizer, return_response=True, strip_system=strip_system,
                              fit_context=fit_context)
-    # kept only for the record (decision T4: a certainty the answer never states is parsed as 1,
+    # kept only for the record (a certainty the answer never states is parsed as 1,
     # so the raw answer is what tells the two apart); nothing below reads it
     parsed["guess_response"] = parsed.pop("response")
 
@@ -299,7 +299,7 @@ def attention_spans(
 # ---------------------------------------------------------------------------
 
 def oracle_gt_spans(text: str, attribute: str, ground_truth: str, model, tokenizer) -> List[List[int]]:
-    """E5's *achievable* ceiling for CoT-derived cues: the same privacy-leakage chain as
+    """The *achievable* ceiling for CoT-derived cues: the same privacy-leakage chain as
     V_cot, except the chain is asked to justify the GROUND-TRUTH value instead of the
     attacker's own guess. This upper-bounds V_cot's cue quality by removing its dependence
     on the attacker guessing right in the first place (in the pilot the attacker's top-1 was

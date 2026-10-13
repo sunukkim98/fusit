@@ -1,5 +1,3 @@
-description: >
-  AA@1 on the TAB full run (2026-10-06), as implicit_aa.yaml, attacked with DP-Fusion's official attack.
 extends: tab.yaml
 run:
   aa: true

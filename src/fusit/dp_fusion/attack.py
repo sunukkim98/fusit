@@ -2,20 +2,19 @@
 The explicit experiment's attack: DP-Fusion's token-recovery game (paper Section 3) with the LOSS
 and Min-K% attacks (Section 4.3), by the official DP-Fusion-DPI protocol -- a replica of
 dataset/dpfusion_official/Attack.py, which parses argv at import time and so cannot be imported.
-Moved from scripts/table1/official.py and attack.py (2026-10-04), unchanged.
 
 For each document and target group g in {PERSON, CODE, DATETIME} the attacker holds the released
 text D', |C| = 5 candidate passages in which only g's mentions differ (the true one at index 0, the
 rest drawn from candidate_set_100.json with Attack.py's per-type seeds) and the surrogate's weights.
 Each candidate is scored by the surrogate's log-likelihood of D' given the official prompt holding
-that passage; the best-scoring candidate is the guess. Validated on the paper's own paraphrases
-against paper Table 1 (scripts/table1/official_check.py, results/official_check.md).
+that passage; the best-scoring candidate is the guess. Checked on the paper's own paraphrases
+against the paper's reported results.
 
-Decisions recorded against Attack.py (2026-10-04):
-    C1-a  the surrogate is Llama-3.1-8B-Instruct (the attacker of the implicit tables); the official
-          attacker is the defender's own Qwen2.5-7B.
-    C1-c  only the logits that are read are computed (logits_to_keep); the numbers are the same.
-    C1-d  Min-K% takes at most as many tokens as a paraphrase has (Attack.py would raise).
+Differences from Attack.py:
+    - the surrogate is Llama-3.1-8B-Instruct (the attacker of the implicit evaluation); the
+      official attacker is the defender's own Qwen2.5-7B.
+    - only the logits that are read are computed (logits_to_keep); the numbers are the same.
+    - Min-K% takes at most as many tokens as a paraphrase has (Attack.py would raise).
 """
 
 import json
@@ -83,7 +82,7 @@ def logp_batch(prompts: List[str], paraphrase: str, model, tok, max_tokens: int 
     L = ids.size(1)
     starts = [int(enc_p.attention_mask[i].sum()) for i in range(ids.size(0))]
     # only positions >= min(start) - 1 are ever read; lm_head is per-position, so computing just
-    # those (logits_to_keep) gives the same numbers without the full [5, L, V] tensor (C1-c)
+    # those (logits_to_keep) gives the same numbers without the full [5, L, V] tensor
     keep = L - (min(starts) - 1)
     with torch.autocast(device.type, enabled=True, dtype=torch.float16):
         logits = model(input_ids=ids, attention_mask=mask, return_dict=True, logits_to_keep=keep).logits

@@ -5,7 +5,7 @@ Every signal source in this package returns `[[start, end], ...]` char offsets i
 text, so the merge/coverage helpers here are what the whole package speaks in.
 
 The controls exist because "the cue tagger lowered attack accuracy" is not by itself evidence
-that the cue tagger picked the *right* words. In a pilot (2026-09-02, N=20) `ner_cot` deleted
+that the cue tagger picked the *right* words. In a pilot on 20 items, `ner_cot` deleted
 49.7% of the document and landed at ASR@1 0.403, while plain `ner` deleted 1.0% and landed at
 0.390 -- an ordering indistinguishable from "more text was deleted". A cue condition has to be
 compared against a random selection of the SAME size, which is what `random_spans_matched`
@@ -50,12 +50,12 @@ def occurrences(text: str, s: str) -> List[List[int]]:
 
 def match_quote(quote: str, text: str, threshold: float = 90):
     """(kind, score, [start, end] or None) of a model's quote in `text`: exact (case-insensitive),
-    else the best rapidfuzz partial_ratio alignment if it scores >= threshold -- decision (a): a
+    else the best rapidfuzz partial_ratio alignment if it scores >= threshold: a
     local model rarely quotes verbatim, and exact, case-sensitive matching drops many quotes."""
     from rapidfuzz import fuzz
 
     # str.lower() can lengthen a character ("İ" -> "i̇"), so offsets found in the lowered text are
-    # mapped back through `orig` (2026-10-04: TAB-ECHR has such names; Synthetic / SynthPAI have none)
+    # mapped back through `orig` (TAB-ECHR has such names; Synthetic / SynthPAI have none)
     low, orig = _lowered(text)
     q = quote.lower()
     i = low.find(q)
@@ -103,13 +103,13 @@ def is_functional_word(word: str) -> bool:
 def content_word_spans(text: str) -> List[List[int]]:
     """Every non-functional whitespace-delimited word. This is the candidate pool that
     attention_spans() ranks and takes the top-K of, so it is also the right pool to draw
-    the E2 random control from: drawing from ALL words instead would make the control
+    the random control from: drawing from ALL words instead would make the control
     weaker than it should be (it would be partly measuring "cues avoid stopwords")."""
     return [[m.start(), m.end()] for m in WORD_RE.finditer(text) if not is_functional_word(m.group())]
 
 
 def random_spans_matched(text: str, target_spans: List[List[int]], seed: int = 0) -> List[List[int]]:
-    """E2's coverage-matched random control for `target_spans`.
+    """The coverage-matched random control for `target_spans`.
 
     Matches the target on THREE axes rather than just total coverage, so that any ASR gap
     between a cue condition and its control is attributable to *which* words were picked
@@ -163,7 +163,7 @@ def random_spans_matched(text: str, target_spans: List[List[int]], seed: int = 0
     # loop above silently DROPS every span that can no longer find a free slot, so the
     # control ends up deleting less than the condition it controls for -- measured 0.492 vs
     # 0.616 on SynthPAI ner_cot_att, which flatters the cue condition on exactly the
-    # comparison E2 exists to make. Total coverage is the axis that must match, so fill the
+    # comparison the control exists to make. Total coverage is the axis that must match, so fill the
     # shortfall from whatever content words remain, accepting a coarser per-span length
     # match at saturation (there is no arrangement that preserves both).
     want_total = sum(e - s for s, e in merge_spans([list(t) for t in target_spans]))
@@ -185,17 +185,16 @@ def random_spans_matched(text: str, target_spans: List[List[int]], seed: int = 0
 
 
 def oracle_all_content(text: str) -> List[List[int]]:
-    """E5's absolute removal-only ceiling: delete every content word, keeping only function
+    """The absolute removal-only ceiling: delete every content word, keeping only function
     words. Nothing a span-removal defense can do goes beyond this. If an attacker still
     beats random guessing here, the limit being measured belongs to the removal paradigm
-    itself, not to the cue tagger -- which is the evidence RQ5 asks for. Costs no LLM call."""
+    itself, not to the cue tagger. Costs no LLM call."""
     return merge_spans(content_word_spans(text))
 
 
 def mask_lines(text: str, spans: List[List[int]], placeholder: str = "_") -> str:
     """`redact`, but line breaks inside a span are kept, so comments stay one per line -- the
-    result tables' mask-only rows ("_" masking, decision 2026-10-04; verifier/table.py `masked`
-    until then)."""
+    mask-only rows of the result tables ("_" masking)."""
     m = list(redact(text, spans, placeholder))
     for k, ch in enumerate(text):
         if ch == "\n":

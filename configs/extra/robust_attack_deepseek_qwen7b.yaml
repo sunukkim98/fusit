@@ -1,6 +1,3 @@
-description: >
-  Robustness attack with DeepSeek-R1-Distill-Qwen-7B, as TRACE-RPS evaluates it (configs/reddit/inference_*/deepseek.yaml):
-  its model_template (user turn only, answer opened with <think>), greedy, 2000 new tokens, bfloat16.
 extends: robust_attack_base.yaml
 run:
   attacker_model: models/DeepSeek-R1-Distill-Qwen-7B

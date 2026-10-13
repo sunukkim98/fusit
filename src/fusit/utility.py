@@ -1,5 +1,5 @@
 """
-Utility of every Table 1 output, measured the way the two papers being compared measure it.
+Utility of every released text, measured the way the compared papers measure it.
 
     python -m fusit.utility --dataset synthetic --num-shards 20 --shard-index 0
 
@@ -21,39 +21,32 @@ The judge is Llama-3.1-8B-Instruct run locally and greedily, where the papers us
 It wrote none of the outputs being judged: Qwen2.5-7B wrote the paraphrases and rewrites, so
 using it would let it grade its own text.
 
-Decisions recorded against Staab et al.'s code (2026-10-04); the implicit result table
-(verifier/judge_utility.py) scores through the prompt and parser here:
-    B1-a  judge Llama-3.1-8B-Instruct, greedy (official: gpt-4-1106-preview, temperature 0.1).
-    B1-b  original and adapted texts are the comments joined by newlines WITHOUT dates; the
-          reference joins str(Comment) = "YYYY-MM-DD: text" per comment, for the judge and for
-          ROUGE. The outputs judged here (one paraphrase or rewrite per document) are not
-          per-comment, so there is nothing to date.
-    B1-c  an answer the original parser cannot decode (the template omits the outer closing
-          brace and the local judge copies that; 45% of the result table's answers) is read key
-          by key instead of being scored 1 -- the local judge does not follow the format reliably.
-    B1-d  an answer from which a score still cannot be read keeps the original 1 (1.7%).
-    B1-e  one prompt and parser, here; the header is the official string (see UTILITY_HEADER).
-    B1-f  600 new tokens; no result-table answer reached it.
-
-    E1  (2026-10-04) 600 new tokens (B1-f), the result tables' value; the legacy runner below used 512.
-    E2  the judge is batched over every query at once, longest first (`fusit.trace.chat.make_batches`),
-        capped at 16000 prompt + new tokens: "_"-masked texts tokenize long and the result tables'
-        40000 ran out of memory on a 24 GB card.
-    E3  both similarity families are computed (`TextSimilarity`): ROUGE-1 and all-MiniLM-L6-v2
-        cosine (DP-Fusion A.18), which the result tables report, and BLEU, ROUGE-L and
-        paraphrase-MiniLM-L6-v2 SBERT (TRACE-RPS's RPS metric), kept alongside.
-    E4  the hallucination score is clipped to [0, 1] before averaging (the judge now and then
-        answers it on the 1-10 scale; 2 of the result tables' 37,858 answers).
+Differences from Staab et al.'s code:
+    - judge Llama-3.1-8B-Instruct, greedy (official: gpt-4-1106-preview, temperature 0.1).
+    - original and adapted texts are the comments joined by newlines WITHOUT dates; the
+      reference joins str(Comment) = "YYYY-MM-DD: text" per comment, for the judge and for
+      ROUGE. The outputs judged here (one paraphrase or rewrite per document) are not
+      per-comment, so there is nothing to date.
+    - an answer the original parser cannot decode (the template omits the outer closing
+      brace and the local judge copies that; about 45% of the answers) is read key by key
+      instead of being scored 1 -- the local judge does not follow the format reliably.
+    - an answer from which a score still cannot be read keeps the original 1 (about 1.7%).
+    - 600 new tokens.
+    - the judge is batched over every query at once, longest first (`fusit.trace.chat.make_batches`),
+      capped at 16000 prompt + new tokens ("_"-masked texts tokenize long).
+    - the hallucination score is clipped to [0, 1] before averaging (the judge now and then
+      answers it on the 1-10 scale).
+`TextSimilarity` computes ROUGE-1 / ROUGE-L, BLEU, all-MiniLM-L6-v2 cosine (DP-Fusion A.18) and
+paraphrase-MiniLM-L6-v2 SBERT (TRACE-RPS's metric for RPS).
 
 Not reproduced from DP-Fusion: its pairwise GPT-4o-mini win rate (a tournament over this many
 methods is a different experiment) and its perplexity, which teacher-forces the original
 document through the private generator and so only exists for DP-Fusion outputs.
 
 Two runners use the prompt and parser above:
-    `judge_texts` + `TextSimilarity` + `utility_cell`   the result tables' (fusit.main --judge, 2026-10-04)
-    `run` / `summarize` (python -m fusit.utility)       LEGACY: the earlier results/table1 runs only
-        (outputs of the pre-2026-10-04 fusit.main: spaCy NER, per-source groups, 512 tokens). Kept
-        to preserve that code; the main table uses the runner above. Whether to delete it is open.
+    `judge_texts` + `TextSimilarity` + `utility_cell`   the reported results' (fusit.main --judge)
+    `run` / `summarize` (python -m fusit.utility)       an older runner over an earlier output layout
+        (spaCy NER, per-source groups, 512 tokens), not used by the reported results
 """
 
 import argparse
@@ -75,13 +68,13 @@ from fusit.trace.chat import format_chat
 UTILITY_SYSTEM_PROMPT = "You are an expert text similarity scorer that carefully compares two texts and gives a score based on how similar they are. You follow the instructions and format precisely and you try to give a score as close to the ground truth as possible."
 # the value of the original textwrap.dedent(...) expression (its 8-space indentation survives the
 # backslash line continuations as runs of spaces), computed from the source and pasted as a literal.
-# Until 2026-10-04 this module re-ran textwrap.dedent on a 4-space-indented copy, which joined the
-# continued lines with 4 spaces instead of 9 (decision B1-e).
+# Re-running textwrap.dedent on a re-indented copy would join the continued lines with a different
+# number of spaces, so the literal is kept.
 UTILITY_HEADER = '\nYou are a judge that must decide on a scale from 1-10 whether two sets of comments, the original and the adapted, have the same meaning and content.         10 means they have excatly the same content and message while 1 means they are nothing alike. Before giving your final         score give a brief step-by-step reasoning of your decision. Give your answer in the JSON format below:\n{\n"readability": {\n    "explanation": <Is the adapted text as readable and understandable as the original text? Could a human read it without issues? Focus only on the adapted text without your knowledge of the original one.>,\n    "score": <Number between 1 (unreadable) to 10 (equally readable as the original text)>\n},\n"meaning": {\n    "explanation": <Does the adapted text have the same meaning as the original text? Does it convey the same message?>,\n    "score": <Number between 1 (different meaning) to 10 (same meaning)>\n},\n"hallucinations": {\n    "explanation": <Does the adapted text contain any information that was not present in the original text and that does not reflect the original text or did it correctly abstract and generalize the original text?>,\n    "score": Either 0 (contains new information) or 1 (contains no new information)>\n}\n'
 UTILITY_FOOTER = "Only answer in the given format and do not add any additional information."
 
 
-#: LEGACY (the earlier results/table1 runs; see the module docstring). Where each run lives, relative to --results.
+#: The older runner's input layout (see the module docstring): where each run lives, relative to --results.
 RUNS = {"trace": "table1", "dpfusion": "table1_dpfusion", "tracerps": "table1_tracerps"}
 
 
@@ -148,7 +141,7 @@ _KEY_SCORE = {k: re.compile(r'"' + k + r'"\s*:\s*\{.*?"score"\s*:\s*"?(-?\d+(?:\
 def parse_fallback(answer_str: str) -> dict:
     """For answers the original parser cannot decode: the prompt's own JSON template never closes
     its outer brace, and the judge sometimes copies that. Each key's "score" is read directly;
-    a key with no readable score keeps the original fallback of 1 (decisions B1-c, B1-d)."""
+    a key with no readable score keeps the original fallback of 1."""
     strict = parse_utility_answer(answer_str)
     if strict["parsed"]:
         return {**strict, "fallback": False}
@@ -163,8 +156,7 @@ def parse_fallback(answer_str: str) -> dict:
 def parse_judge(answer: str) -> Dict:
     """`parse_fallback` in this module's record format: the three scores plus `parse` -- "ok"
     (the original parser read it), "regex" (read key by key), "fallback" (a score could not be
-    read and keeps the original 1). Until 2026-10-04 this module had its own recovery (append the
-    missing brace, then a block-wise regex) and left "fallback" answers out of the means."""
+    read and keeps the original 1)."""
     p = parse_fallback(answer or "")
     how = "ok" if not p["fallback"] else ("regex" if p["parsed"] else "fallback")
     return {**p["scores"], "parse": how}
@@ -201,18 +193,18 @@ def judge_batch(prompts: List[str], model, tok, max_new_tokens: int) -> List[str
     return tok.batch_decode(gen[:, enc["input_ids"].shape[1]:], skip_special_tokens=True)
 
 
-# -- the result tables' runner (fusit.main --judge) ----------------------------------------------
+# -- the reported results' runner (fusit.main --judge) -------------------------------------------
 
-#: E1 / B1-f
+#: new tokens per judge answer
 JUDGE_MAX_NEW = 600
-#: E2
+#: prompt + new tokens per batch
 JUDGE_MAX_BATCH_TOKENS = 16000
 
 
 def judge_texts(gen, pairs: Sequence[tuple], batch_size: int = 8, max_batch_tokens: int = JUDGE_MAX_BATCH_TOKENS,
                 on_batch=None):
     """[(original, adapted)] -> [Generation] through the judge's own chat template (system + user,
-    tokenized without extra special tokens), as verifier/judge_utility.py ran it."""
+    tokenized without extra special tokens)."""
     from fusit.trace.chat import generate_all
     enc = []
     for original, adapted in pairs:
@@ -223,7 +215,7 @@ def judge_texts(gen, pairs: Sequence[tuple], batch_size: int = 8, max_batch_toke
     return generate_all(gen, enc, batch_size, max_batch_tokens, on_batch)
 
 
-#: DP-Fusion A.18's sentence encoder (the result tables' cosine) and TRACE-RPS's (E3)
+#: DP-Fusion A.18's sentence encoder (cosine) and TRACE-RPS's (SBERT)
 COSINE_MODEL = Path("models/all-MiniLM-L6-v2")
 SBERT_MODEL = "sentence-transformers/paraphrase-MiniLM-L6-v2"
 
@@ -231,7 +223,7 @@ SBERT_MODEL = "sentence-transformers/paraphrase-MiniLM-L6-v2"
 class TextSimilarity:
     """Released text vs the original: ROUGE-1 / ROUGE-L F (rouge_score, stemming -- Staab et al.'s
     compute_rouge, scorer.score(original, adapted)), BLEU (compute_bleu), all-MiniLM-L6-v2 cosine
-    and paraphrase-MiniLM-L6-v2 SBERT (E3). `sbert=None` skips the latter (no local copy)."""
+    and paraphrase-MiniLM-L6-v2 SBERT. `sbert=None` skips the latter (no local copy)."""
 
     def __init__(self, device: str = "cpu", cosine_model=COSINE_MODEL, sbert: Optional[str] = SBERT_MODEL):
         from nltk.translate import bleu
@@ -260,8 +252,8 @@ class TextSimilarity:
 
 
 def utility_cell(answers: Sequence[str], similarity: Sequence[Dict[str, float]]) -> Dict[str, float]:
-    """One result-table utility cell (verifier/judge_utility.py `score`): judge answers read by
-    `parse_fallback`, readability / meaning clipped to [0, 10], hallucinations to [0, 1] (E4);
+    """One result-table utility cell: judge answers read by
+    `parse_fallback`, readability / meaning clipped to [0, 10], hallucinations to [0, 1];
     utility = (readability/10 + meaning/10) / 2, utility_comb = (readability/10 + meaning/10 +
     ROUGE-1) / 3 per item (plot_anonymized.py), means over items."""
     import numpy as np
@@ -285,7 +277,7 @@ def utility_cell(answers: Sequence[str], similarity: Sequence[Dict[str, float]])
     return out
 
 
-# -- LEGACY runner: the earlier results/table1 runs only (see the module docstring) --------------
+# -- the older runner, not used by the reported results (see the module docstring) --------------
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m fusit.utility", description=__doc__.split("\n\n")[1],
@@ -365,7 +357,7 @@ def summarize(out_dir: Path, dataset: str) -> str:
              f"{'output':<26} {'read':>5} {'mean':>5} {'hall':>5} {'comb':>6} {'BLEU':>6} {'R-1':>6} {'R-L':>6} {'SBERT':>6} {'unread':>6}"]
     for cond in sorted(rows, key=lambda c: ORDER.index(c) if c in ORDER else len(ORDER)):
         bad = sum(x["parse"] == "fallback" for x in rows[cond])
-        v = rows[cond]          # unreadable answers keep the original 1s (decision B1-d)
+        v = rows[cond]          # unreadable answers keep the original 1s
         mean = lambda k: sum(x[k] for x in v) / len(v)
         # hallucinations is 0/1, but the judge sometimes answers it on the 1-10 scale of the
         # other two; anything above 1 is read as "no new information"

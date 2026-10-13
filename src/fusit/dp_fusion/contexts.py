@@ -105,8 +105,7 @@ def aligned_token_ids(tokenizer, prompt: str, text: str, offsets: Sequence[Seque
     `offsets` are `[start, end]` character spans into `text`, and every token of the prompt that
     overlaps one becomes the placeholder in `public_ids`. Equal length is checked.
 
-    The single-group construction every experiment uses (verifier.dpfusion, scripts/table1,
-    verifier.infill), whatever prompt template they pass in.
+    The single-group construction every experiment uses, whatever prompt template is passed in.
     """
     start = locate_document(prompt, text)
     private = tokenizer(prompt, add_special_tokens=False)["input_ids"]

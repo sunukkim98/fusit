@@ -1,0 +1,4 @@
+extends: ../main/implicit.yaml
+run:
+  judge: false
+  ppl: false

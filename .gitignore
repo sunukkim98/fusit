@@ -80,9 +80,7 @@ models/
 # Build artifacts
 *.whl
 MANIFEST
-# Claude Code personal config
-CLAUDE.md
-.claude/
+# personal notes
 todo.md
 
 # TAB-ECHR raw corpus: 70 MB of json, too large to track. The SynthPAI and synthetic

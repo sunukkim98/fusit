@@ -14,7 +14,7 @@ Modules:
     fusion     the mechanism: divergence, lambda search, the decoding loop
     epsilon    turns per-step divergences into an (epsilon, delta) guarantee
     prompting  the prompt templates (the official DP-Fusion-DPI one and fusit's chat-template one)
-    run        one DP-Fusion run per document, as the experiments call it (+ decisions D1-D4)
+    run        one DP-Fusion run per document, as the experiments call it
     tagger     Document Privacy API client for automatic phrase extraction
 """
 

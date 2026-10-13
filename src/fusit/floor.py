@@ -1,11 +1,11 @@
 """
 The attacker's floor: what it scores from the prompt alone, with the text's information gone.
 
-    python -m fusit.floor --dataset synthetic --n-items 20 --output results/diag_floor_smoke/synthetic/shard_0.jsonl
+    python -m fusit.floor --dataset synthetic --n-items 20 --output output/floor/synthetic_0.jsonl
 
 A defence's accuracy only means something against the accuracy an attacker reaches without
 reading anything -- a prior over ages, a lean towards "male" or "middle income". Two LLM
-conditions measure that floor with the Table 1 attacker, prompt and scorer unchanged:
+conditions measure that floor with the evaluation attacker, prompt and scorer unchanged:
 
     empty    the comments slot left empty; the rest of TRACE-RPS's prompt is kept. The prompt
              then depends on the attribute alone, so under greedy decoding every item gets
@@ -13,15 +13,12 @@ conditions measure that floor with the Table 1 attacker, prompt and scorer uncha
              item. `--empty-cache` shares that answer between workers, so shards on
              different GPUs cannot disagree about what a constant condition answered.
     masked   every whitespace-delimited run replaced by "_" with `fusit.trace.redact`, the
-             redaction the Table 1 rows use: character length and line structure survive,
+             redaction the masked rows use: character length and line structure survive,
              words do not. Under the Llama-3.1 tokenizer this keeps the token count within
              0.8-1.2x of the original (median 0.94 Synthetic, 1.04 SynthPAI); each record
              carries both counts.
     no_defense  the original text, as `fusit.main` attacks it. Not part of the floor: run it
-             on a few items to check this module reproduces the stored Table 1 guesses.
-
-The label-prior baseline that needs no model (answer the most frequent value every time) is
-computed from the dataset in scripts/table1/summarize.py, next to these.
+             on a few items to check this module reproduces the stored attack guesses.
 
 Output is a JSONL checkpoint like `fusit.main`'s: records are rewritten after every item and
 a restart skips the cells already stored. The unparsed answer is kept in every cell so a

@@ -12,7 +12,7 @@ starts:
        trace       (--trace) TRACE@1: one TRACE rewrite from the tag stage's cues
     2. paraphrase  DP-Fusion rewrites the document once per alpha*beta, one privacy group
                    per cue source (--grouping single: one group holding all of X_priv)
-    3. attack      the result tables' attack (TRACE-RPS Table 1's protocol, fusit.trace) on every
+    3. attack      the evaluation attack (TRACE-RPS's protocol, fusit.trace) on every
                    released text: the original, "_"-masked X_priv conditions, the paraphrases,
                    TRACE@1; answers are stored raw and scored by --summarize
        judge       (--judge) Staab et al.'s LLM-as-judge utility and text similarity (fusit.utility)
@@ -28,7 +28,7 @@ Results go to a JSONL file, one line per item, carrying the raw spans, paraphras
 attacker guesses as well as the scores, so a different scorer can be applied later without
 rerunning any model. Scoring is TRACE-RPS's (`fusit.trace.scoring`): top-1/2/3 with age
 ranges, category synonyms and fuzzy matching on free text, which is what makes accuracies
-comparable to its Table 1.
+comparable to its reported results.
 
 For cluster runs, `--num-shards/--shard-index` split the selection round-robin, and the
 output file doubles as a checkpoint: records are rewritten after every item, and on restart
@@ -61,8 +61,8 @@ from fusit.utils import seed_for
 #: so there is no attribute for the attacker to recover.
 PIPELINE_DATASETS = ("synthetic", "synthpai", "tab")
 
-#: TAB (the explicit experiment) has no attribute labels: the cue tagger runs every attribute
-#: (decision X5, 2026-10-04), in the evaluation attack's order.
+#: TAB (the explicit experiment) has no attribute labels: the cue tagger runs every attribute,
+#: in the evaluation attack's order.
 TAB_ATTRIBUTES = ("income_level", "age", "sex", "education", "relationship_status",
                   "occupation", "city_country", "birth_city_country")
 
@@ -93,7 +93,7 @@ GROUPINGS = ("source", "single")
 #: The one group --grouping single builds.
 SINGLE_GROUP = "x_priv"
 
-#: Ground-truth labels: fusit.dataset's own, or TRACE-RPS's attack/eval labels (decision A6).
+#: Ground-truth labels: fusit.dataset's own, or TRACE-RPS's attack/eval labels.
 LABELS = ("fusit", "tracerps")
 
 #: Stages, in order; --stop-after ends the run after one of them.
@@ -126,7 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
                       help="run exactly these usernames instead of sampling")
     data.add_argument("--labels", choices=LABELS, default="fusit",
                       help="ground truth: fusit.dataset's, or TRACE-RPS's attack/eval labels (the "
-                           "result tables', decision A6)")
+                           "reported results')")
 
     models = p.add_argument_group("models")
     models.add_argument("--tagger-model", default="NousResearch/Llama-2-7b-chat-hf",
@@ -143,7 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
                      help="signal sources forming X_priv")
     tag.add_argument("--k-att", type=int, default=10, help="top-K attention words per attribute")
     tag.add_argument("--ner-backend", choices=tuple(BACKENDS) + ("gold",), default="spacy",
-                     help="gold: the dataset's own annotated spans (TAB only; decision X4)")
+                     help="gold: the dataset's own annotated spans (TAB only)")
     tag.add_argument("--ner-score-threshold", type=float, default=0.0,
                      help="presidio backend only: drop detections scoring below this. DP-Fusion "
                           "Appendix A.17 runs its BERT-NER tagger at 0.5")
@@ -153,15 +153,15 @@ def build_parser() -> argparse.ArgumentParser:
                      help="which source keeps a span two sources both marked")
     tag.add_argument("--cue-strip-system", action="store_true",
                      help="trim the system prompt of the V_cot guess / chain calls, as TRACE-RPS's Llama-2 "
-                          "template does (decision (b))")
+                          "template does")
     tag.add_argument("--quote-match", choices=("exact", "fuzzy"), default="exact",
                      help="locating V_cot quotes in D: exact = case-sensitive verbatim; fuzzy = "
-                          "case-insensitive, else rapidfuzz partial_ratio >= --fuzzy-threshold (decision (a))")
+                          "case-insensitive, else rapidfuzz partial_ratio >= --fuzzy-threshold")
     tag.add_argument("--fuzzy-threshold", type=float, default=90)
     tag.add_argument("--chain-max-new", type=int, default=500, help="V_cot chain generation budget (TRACE: 500)")
     tag.add_argument("--fit-context", action="store_true",
                      help="never cut a document in the V_cot calls: a shorter guess budget, and the chain run "
-                          "per line-bounded piece when it would not fit (decision T8)")
+                          "per line-bounded piece when it would not fit")
     tag.add_argument("--tags-from", type=Path, nargs="+", default=None, metavar="JSONL",
                      help="take stage 1 from these earlier outputs instead of rerunning the "
                           "tagger; their tag config must match this run's")
@@ -172,10 +172,10 @@ def build_parser() -> argparse.ArgumentParser:
     ver.add_argument("--verifier-model", default="models/Llama-2-7b-chat-hf",
                      help="the verifier's attacker (p(value | text) by candidate log-likelihood)")
     ver.add_argument("--verify-att", action="store_true",
-                     help="also score the V_att words as units (2026-10-06); on an output verified without them "
+                     help="also score the V_att words as units; on an output verified without them "
                           "only the V_att units are scored and added, so thresholds and V_cot decisions stay")
     ver.add_argument("--verify-null", type=int, default=20, metavar="N",
-                     help="null words per (item, attribute) the thresholds are set from (2026-10-10): stage 2 "
+                     help="null words per (item, attribute) the thresholds are set from: stage 2 "
                           "draws and scores N; --decide checks the outputs were scored with the same N")
     ver.add_argument("--decide", type=Path, nargs="+", default=None, metavar="JSONL",
                      help="no stage runs: pool the verify scores of these outputs (every shard of a "
@@ -185,11 +185,11 @@ def build_parser() -> argparse.ArgumentParser:
     tr = p.add_argument_group("TRACE@1")
     tr.add_argument("--trace", action="store_true",
                     help="TRACE as a defense, one round: the anonymizer rewrites D from the tag stage's "
-                         "guesses, chains and V_att words (fusit.trace.anonymize, decisions V-j, TJ-1..4)")
+                         "guesses, chains and V_att words (fusit.trace.anonymize)")
     tr.add_argument("--anonymizer-model", default="Qwen/Qwen2.5-7B-Instruct",
                     help="the TRACE@1 rewriter (greedy); also AA@1's")
     tr.add_argument("--aa", action="store_true",
-                    help="AA@1 as a defense (2026-10-06): one round of Staab et al.'s adversarial anonymization "
+                    help="AA@1 as a defense: one round of Staab et al.'s adversarial anonymization "
                          "from the tag stage's inferences, AA's own prompt (fusit.trace.anonymize.aa_rewrite)")
 
     rp = p.add_argument_group("RPS")
@@ -198,16 +198,17 @@ def build_parser() -> argparse.ArgumentParser:
                          "--rps-bases text; the suffixed texts join the evaluation as rps@<base>")
     rp.add_argument("--rps-model", default="NousResearch/Meta-Llama-3.1-8B-Instruct", help="the RPS target")
     rp.add_argument("--rps-bases", nargs="+", choices=RPS_BASES, default=list(RPS_BASES))
-    rp.add_argument("--rps-restarts", type=int, default=1, help="decision R1 (official 2)")
-    rp.add_argument("--rps-iterations", type=int, default=1000, help="decision R1 (official 10000)")
-    rp.add_argument("--rps-skip-rule", choices=("official", "legacy"), default="official", help="decision R3")
-    rp.add_argument("--rps-kv-cache", action="store_true", help="decision R4: reuse the prompt prefix (not exact)")
+    rp.add_argument("--rps-restarts", type=int, default=1, help="random-search restarts (official: 2)")
+    rp.add_argument("--rps-iterations", type=int, default=1000, help="iterations per restart (official: 10000)")
+    rp.add_argument("--rps-skip-rule", choices=("official", "legacy"), default="official",
+                    help="how a skipped stage-2 step counts (fusit.trace.rps)")
+    rp.add_argument("--rps-kv-cache", action="store_true", help="reuse the prompt prefix's KV cache (faster, not exact)")
     rp.add_argument("--rps-xpriv-conditions", nargs="+", default=None, metavar="CONDITION",
                     help="give a suffix only to these X_priv conditions' paraphrases (default: every paraphrase)")
     rp.add_argument("--rps-no-think-prefill", dest="rps_think_prefill", action="store_false",
                     help="DeepSeek-R1 targets: drop the \"<think>\\n\" the current chat template opens the answer with "
                          "(templates from before the model card's recommendation did not), so the suffix may make "
-                         "the model skip thinking (2026-10-07)")
+                         "the model skip thinking")
 
     dpf = p.add_argument_group("DP-Fusion")
     dpf.add_argument("--alpha-beta", type=float, nargs="+", default=[0.1], metavar="CAP",
@@ -234,13 +235,13 @@ def build_parser() -> argparse.ArgumentParser:
                           "unset, the generator is never reseeded")
     dpf.add_argument("--prompt", choices=("fusit", "official"), default="fusit",
                      help="fusit's chat-template prompt, or the official DP-Fusion-DPI template "
-                          "(decision D9; --grouping single only)")
+                          "(--grouping single only)")
     dpf.add_argument("--xpriv-conditions", nargs="+", default=None, metavar="CONDITION",
                      help="paraphrase once per verifier X_priv condition (record['x_priv_conditions'], "
                           "written by --decide) instead of the tag stage's X_priv; keys condition@cap")
     dpf.add_argument("--budget-rule", choices=("fusit", "ceil"), default="fusit",
                      help="fusit: max(64, min(cap, round(ratio x doc tokens))); ceil: "
-                          "ceil(ratio x doc tokens), no floor or cap (the result tables, 2026-10-03)")
+                          "ceil(ratio x doc tokens), no floor or cap (the reported results)")
     dpf.add_argument("--seed-rule", choices=("fusit", "item"), default="fusit",
                      help="fusit: --gen-seed as below; item: seed_for(dataset, item, condition, cap)")
     dpf.add_argument("--save-token-trace", action="store_true",
@@ -263,21 +264,21 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--attack-max-batch-tokens", type=int, default=20000,
                     help="padded tokens per attack batch (prompt + new tokens); fixes the batch layout")
     ev.add_argument("--attack-template", choices=ATTACK_TEMPLATES, default="author_llama3",
-                    help="how the attack prompt is rendered: author_llama3 = the result tables' Llama-3 template "
+                    help="how the attack prompt is rendered: author_llama3 = TRACE-RPS's Llama-3 template "
                          "(the attacker must be Llama-3 Instruct); chat = the attacker's own chat template; "
                          "chat_nosystem = the same with the system prompt folded into the user turn, as "
                          "DeepSeek-R1 asks; deepseek_r1 = TRACE-RPS's DeepSeek-R1-Distill template (user turn only, "
                          "answer opened with <think>). Except author_llama3, the new-token budget is cut to the attacker's context "
-                         "(Llama-2: 4096) and a reasoning model's <think> block is dropped at scoring (2026-10-07)")
+                         "(Llama-2: 4096) and a reasoning model's <think> block is dropped at scoring")
     ev.add_argument("--attack-max-new", type=int, default=0,
-                    help="new-token budget of every attack answer; 0 = the result tables' "
+                    help="new-token budget of every attack answer; 0 = TRACE-RPS's "
                          "(Synthetic 500, SynthPAI 1000). A reasoning attacker needs room for its <think> block")
     ev.add_argument("--judge", action="store_true",
                     help="LLM-as-judge utility (Staab et al.) and text similarity of every released text")
     ev.add_argument("--judge-model", default="NousResearch/Meta-Llama-3.1-8B-Instruct")
-    ev.add_argument("--judge-max-batch-tokens", type=int, default=16000, help="decision E2")
+    ev.add_argument("--judge-max-batch-tokens", type=int, default=16000, help="prompt + new tokens per judge batch")
     ev.add_argument("--sbert-model", default="sentence-transformers/paraphrase-MiniLM-L6-v2",
-                    help="TRACE-RPS's SBERT similarity (decision E3); 'none' skips it")
+                    help="TRACE-RPS's SBERT similarity; 'none' skips it")
     ev.add_argument("--ppl", action="store_true",
                     help="perplexity of D: mechanism (what each method shows the model) and release")
     ev.add_argument("--ppl-model", default="Qwen/Qwen2.5-7B-Instruct")
@@ -447,7 +448,6 @@ STAGE_CONFIG = {
 
 #: Paraphrase arguments recorded only when set away from their default, so records written
 #: before they existed still match a default run.
-#: results/table1 predates --ner-score-threshold, so its tag config lacks that key.
 OPTIONAL_CONFIG = {
     "tag": {"ner_score_threshold": 0.0, "labels": "fusit", "cue_strip_system": False, "quote_match": "exact",
             "fuzzy_threshold": 90, "chain_max_new": 500, "fit_context": False},
@@ -494,7 +494,7 @@ def write_records(path: Path, records: Dict[str, dict]) -> None:
 def check_config(rec: dict, args, stage: str) -> None:
     stored = rec.get("config", {}).get(stage)
     # which X_priv conditions to paraphrase does not change how any one is made, so conditions may be
-    # added to an output later (2026-10-04)
+    # added to an output later
     drop = lambda c: {k: v for k, v in c.items() if k != "xpriv_conditions"}  # noqa: E731
     if stored is not None and drop(without_defaults(stored, stage)) != drop(stage_config(args, stage)):
         raise SystemExit(
@@ -609,7 +609,7 @@ def stage_verify(args, items, records: Dict[str, dict]) -> None:
         rec = records[item.username]
         if "cues" not in rec:
             raise SystemExit(f"{rec['item']}: the tag record carries no cue records (guesses, chains, quotes); "
-                             "it was tagged before 2026-10-04 -- tag it again")
+                             "it was tagged by an older version -- tag it again")
         stored = rec.get("config", {}).get("verify")
         if (args.verify_att and stored is not None and "scores" in rec.get("verify", {})
                 and {**without_defaults(stored, "verify"), "verify_att": True} == want
@@ -626,7 +626,7 @@ def stage_verify(args, items, records: Dict[str, dict]) -> None:
     for n, rec in enumerate(todo, 1):
         t0 = time.perf_counter()
         rec.setdefault("config", {})["verify"] = want
-        # null words are seeded by the dataset name, not the label set (verifier.score)
+        # null words are seeded by the dataset name, not the label set (fusit.verifier.score)
         scores = score_item(model, tok, rec["dataset"], rec["item"], rec["text"], verifier_cues(rec["cues"]),
                             rec["truth"], att=args.verify_att, n_null=args.verify_null)
         rec["verify"] = {"scores": scores}
@@ -684,9 +684,9 @@ def stage_trace(args, items, records: Dict[str, dict]) -> None:
 
 
 def stage_aa(args, items, records: Dict[str, dict]) -> None:
-    """AA@1 (2026-10-06): one round of Staab et al.'s adversarial anonymization from the tag stage's
-    inferences (the same attacker side as TRACE@1 and the TRACE x DP-Fusion rows), with AA's own prompt;
-    the rewriter and its generation are TRACE@1's (fusit.trace.anonymize.aa_rewrite, decision AA-1)."""
+    """AA@1: one round of Staab et al.'s adversarial anonymization from the tag stage's inferences
+    (the same attacker side as TRACE@1 and the DP-Fusion rows), with AA's own prompt; the rewriter and
+    its generation are TRACE@1's (fusit.trace.anonymize.aa_rewrite)."""
     from fusit.trace.anonymize import aa_rewrite, analysis_from_cues, rewrite_budget
 
     todo = []
@@ -725,7 +725,7 @@ def run_decide(paths: Sequence[Path], spec: Optional[dict] = None, n_null: int =
     """--decide: decisions over the pooled verify scores of `paths`, and every record's X_priv
     conditions (fusit.verifier.xpriv.build_item), written back into its file. Thresholds are
     per (dataset, attribute), so all shards of a dataset must be given together. `spec` is the
-    config's `xpriv` section (which experiment-only conditions to build); None keeps the legacy set.
+    config's `xpriv` section (which experiment-only conditions to build); None builds the default set.
     `n_null` (--verify-null): the null word count the outputs must have been scored with."""
     from fusit.verifier.decide import decide_all
     from fusit.verifier.inputs import verifier_cues
@@ -769,7 +769,7 @@ def generation_budget(args, tok, text: str) -> int:
     if args.max_new_tokens:
         return args.max_new_tokens
     if args.budget_rule == "ceil":
-        # the result tables' rule (verifier/dpfusion.py): the tokenizer's default call
+        # the reported results' rule: the tokenizer's default call
         return math.ceil(args.length_ratio * len(tok(text)["input_ids"]))
     doc_tokens = len(tok(text, add_special_tokens=False)["input_ids"])
     return max(64, min(args.max_new_tokens_cap, round(args.length_ratio * doc_tokens)))
@@ -783,9 +783,8 @@ def paraphrase_keys(args) -> List[str]:
 
 
 def paraphrase_condition(args, model, tok, rec: dict, cond: str, cap: str) -> dict:
-    """One DP-Fusion run on a verifier X_priv condition: single group, the official prompt
-    (decision D9), the generator of fusit.dp_fusion.run (D1-D4), seeded per (dataset, item,
-    condition, cap) -- the result tables' runs (verifier/dpfusion.py), reproduced."""
+    """One DP-Fusion run on a verifier X_priv condition: single group, the official prompt,
+    the generator of fusit.dp_fusion.run, seeded per (dataset, item, condition, cap)."""
     text = rec["text"]
     xp = rec["x_priv_conditions"][cond]
     ab = float(cap)
@@ -935,7 +934,7 @@ def attack_text(rec: dict, condition: str, text: str) -> str:
 
 
 def rps_attack_text(rec: dict, base: str, base_attack: str, suffix: str) -> str:
-    """How the evaluation shows a base text with its RPS suffix (decision RP2). rps.py publishes
+    """How the evaluation shows a base text with its RPS suffix. rps.py publishes
     response + " \\n\\n" + suffix, and TRACE-RPS's Synthetic loader makes every non-empty line of
     that a dated comment -- the suffix becomes "2014-05-19: <suffix>", the very line it was
     optimized as. So for Synthetic bases shown as dated comments (the original, TRACE@1) the suffix
@@ -951,8 +950,8 @@ def stage_rps(args, items, records: Dict[str, dict]) -> None:
     """RPS (TRACE-RPS rps/rps.py, fusit.trace.rps.search) for every --rps-bases text: the suffix is
     optimized in the evaluation prompt (staab_multi over the item's labelled attributes, as the
     attack sees the base text) with "2014-05-19: {defense}" inserted before "\\nFirst reason
-    step-by-step", as rps.py does (decision R5 / RP1). R1 one restart of 1,000 iterations, R3 the
-    official skipped-step rule, R4 full-forward probes, by default."""
+    step-by-step", as rps.py does. By default one restart of 1,000 iterations (configs set the
+    official 2 x 10,000), the official skipped-step rule and full-forward probes."""
     from fusit.trace.prompts import staab_multi_messages
     from fusit.trace.rps import SENTINEL, Target, defense_init_for, profile_of, published_text, search
 
@@ -962,7 +961,7 @@ def stage_rps(args, items, records: Dict[str, dict]) -> None:
         check_config(rec, args, "rps")
         texts = released_texts(rec, argparse.Namespace(**{**vars(args), "attack_conditions": list(args.rps_bases)}))
         if args.rps_xpriv_conditions:
-            # only these X_priv conditions' paraphrases get a suffix (2026-10-07; default: every paraphrase)
+            # only these X_priv conditions' paraphrases get a suffix (default: every paraphrase)
             texts = {c: t for c, t in texts.items()
                      if not c.startswith("dp_fusion@") or c.split("@")[1] in args.rps_xpriv_conditions}
         todo += [(rec, c, t) for c, t in texts.items() if f"rps@{c}" not in rec.get("rps", {})]
@@ -983,7 +982,7 @@ def stage_rps(args, items, records: Dict[str, dict]) -> None:
         context = getattr(model.config, "max_position_embeddings", None)
         n_prompt = len(target.ids(tmpl.replace(SENTINEL, defense_init_for(args.rps_model))))
         if context and n_prompt > context - ATTACK_MIN_NEW:
-            # Llama-2's 4096 tokens (2026-10-07): the attack cannot answer this prompt either (context_overflow), so
+            # beyond Llama-2's 4096 tokens: the attack cannot answer this prompt either (context_overflow), so
             # no suffix is searched; the base text is published as it is and the record says why
             rec.setdefault("config", {})["rps"] = stage_config(args, "rps")
             rec.setdefault("rps", {})[f"rps@{base}"] = {
@@ -1010,7 +1009,7 @@ def stage_rps(args, items, records: Dict[str, dict]) -> None:
 
 
 def stage_attack(args, items, records: Dict[str, dict]) -> None:
-    """The result tables' attack (TRACE-RPS Table 1's: staab_multi, author template, greedy,
+    """The evaluation attack (TRACE-RPS's: staab_multi, author template, greedy,
     1000 / 500 new tokens) on every released text; answers are stored raw and scored at summary
     time (`summarize`), so a scoring change never needs the GPU."""
     from fusit.trace.chat import HFGenerator, generate_all
@@ -1023,7 +1022,7 @@ def stage_attack(args, items, records: Dict[str, dict]) -> None:
         rec = records[item.username]
         check_config(rec, args, "attack")
         if "attack" in rec and "attack_answers" not in rec:
-            raise SystemExit(f"{rec['item']}: attacked with the pre-2026-10-04 attack; use a different --output")
+            raise SystemExit(f"{rec['item']}: attacked with an older version of the attack; use a different --output")
         done = rec.get("attack_answers", {})
         todo += [(rec, c, t) for c, t in released_texts(rec, args).items() if c not in done]
     if not todo:
@@ -1072,7 +1071,7 @@ def stage_attack(args, items, records: Dict[str, dict]) -> None:
 
 def stage_attack_tab(args, items, records: Dict[str, dict]) -> None:
     """The explicit experiment's attack (fusit.dp_fusion.attack, the official DP-Fusion-DPI
-    token-recovery game, LOSS and Min-K%) on every released text, surrogate --attacker-model (C1-a)."""
+    token-recovery game, LOSS and Min-K%) on every released text, surrogate --attacker-model."""
     from fusit.dataset import Span, TabDocument
     from fusit.dp_fusion.attack import attack_document, load_candidate_pool
 
@@ -1104,7 +1103,7 @@ def stage_attack_tab(args, items, records: Dict[str, dict]) -> None:
 
 def summarize_tab(recs: Dict[str, dict]) -> List[str]:
     """The explicit table over TAB records: ASR of LOSS and Min-K% over (document, group) trials
-    with 95% Wilson intervals (scripts/table1/score.py), coverage, cosine, judge utility, PPL."""
+    with 95% Wilson intervals, coverage, cosine, judge utility, PPL."""
     import statistics as st
     from fusit.dp_fusion.attack import MINK, wilson
     from fusit.perplexity import ppl_of
@@ -1143,7 +1142,7 @@ def summarize_tab(recs: Dict[str, dict]) -> List[str]:
 
 def stage_judge(args, items, records: Dict[str, dict]) -> None:
     """Staab et al.'s LLM-as-judge utility and the text similarities of every released text
-    against D (fusit.utility, decisions B1, E1-E4)."""
+    against D (fusit.utility)."""
     from fusit.trace.chat import HFGenerator
     from fusit.utility import TextSimilarity, judge_texts
 
@@ -1177,7 +1176,7 @@ def stage_judge(args, items, records: Dict[str, dict]) -> None:
 
 
 def stage_ppl(args, items, records: Dict[str, dict]) -> None:
-    """D teacher-forced (fusit.perplexity, decisions B3, D9, E5): mechanism -- the original, every
+    """D teacher-forced (fusit.perplexity): mechanism -- the original, every
     mask, and the single-group DP-Fusion mixture at each paraphrased cap -- and release, D given
     each released text."""
     from fusit.perplexity import mechanism_ppl, release_ppl

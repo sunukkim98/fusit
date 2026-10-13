@@ -1,5 +1,5 @@
 """
-Experiment configuration files (configs/*.yaml, 2026-10-05).
+Experiment configuration files (configs/*.yaml).
 
 A config names what an experiment runs; the package only says what can be run. Two sections:
 
@@ -9,7 +9,7 @@ A config names what an experiment runs; the package only says what can be run. T
     xpriv:   what --decide builds besides the core X_priv conditions (fusit.verifier.xpriv):
                  verified_levels   the decision levels turned into ner_att_vcot<level> (default: all decided)
                  verified_att      true: also ner_vatt_vcot<level>, V_att through the verifier too
-                                   (needs the units of --verify-att; 2026-10-06)
+                                   (needs the units of --verify-att)
                  controls          experiment-only conditions, each {kind, levels, seeds}:
                                    words_all     ner_att_vcotwords (every V_cot word unit, no verifier)
                                    random_doc    random_cov<level>_s<seed>: random content words outside
@@ -17,13 +17,13 @@ A config names what an experiment runs; the package only says what can be run. T
                                    random_vcot   ner_att_vcotrand<level>_s<seed>: random V_cot word units,
                                                  coverage matched to ner_att_vcot<level>
                                    random_noncue random_noncue<level>_s<seed>: as random_doc with V_cot also
-                                                 out of the pool -- words that are no cue (2026-10-06)
+                                                 out of the pool -- words that are no cue
 
 `extends: other.yaml` (relative to the file) loads that config first and deep-merges this one over it,
 so an experiment config only states what differs from the run it builds on.
 
 A `run` value may be a mapping by dataset, `k_att: {synthetic: 10, synthpai: 30, tab: 10}`: the entry
-of the run's --dataset (command line, else the config's) is used (2026-10-09).
+of the run's --dataset (command line, else the config's) is used.
 """
 
 from pathlib import Path

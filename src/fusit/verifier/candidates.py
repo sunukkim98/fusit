@@ -2,10 +2,9 @@
 Candidate sets for p(value | text).
 
   closed attributes   every option of the attack prompt, spelled as the prompt spells it
-  open attributes     TRACE's own guesses, the first three distinct strings as the tagger read them
-                      (decision 2026-10-04; until then trailing periods were stripped, case-
-                      insensitive duplicates dropped and ages normalized the way the matcher reads
-                      them -- clean=True)
+  open attributes     the inference model's own guesses, the first three distinct strings as the
+                      tagger read them (clean=True instead strips trailing periods, drops
+                      case-insensitive duplicates and normalizes ages the way the matcher reads them)
 
 Ground truth is never an input here.
 """

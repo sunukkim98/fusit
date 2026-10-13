@@ -34,7 +34,7 @@ def split_guesses(raw: str) -> List[str]:
 
 def parse_inference_response(response: str, attribute: Optional[str] = None) -> Dict:
     """attribute: when given and not "age", number-only items read from the lines after an
-    empty / announcing Guess field are dropped as certainty notes (decision 2026-10-04); without
+    empty / announcing Guess field are dropped as certainty notes; without
     it (None) they are kept."""
     response = response.replace("*", "").replace("#", "")
     inference, guesses, certainty = "", [], 1
@@ -54,7 +54,7 @@ def parse_inference_response(response: str, attribute: Optional[str] = None) -> 
         # over to the lines that follow, up to another field or the blank line after the list:
         # Llama-2 as often writes one guess per line ("; 35-40", "; 30-35", "; 45-50"), and
         # reading only the first of them left about half of its guess lists one guess long.
-        # Decision 2026-10-04: TRACE's official parser (anonymization/utils.py) reads the Guess
+        # TRACE's official parser (anonymization/utils.py) reads the Guess
         # line alone and, when it is empty, has GPT-4o rewrite the answer into the format
         # (fix_response_format) before parsing again; these experiments run local models only,
         # so for that case alone the following lines are read here instead.
@@ -67,7 +67,7 @@ def parse_inference_response(response: str, attribute: Optional[str] = None) -> 
                 # Llama-2 puts a certainty note after each guess on these lines ("Accountant; 4;
                 # Nearly certain"); the GPT-4o rewrite would drop it, so word-only notes are
                 # dropped here, and number-only ones for every attribute but age, where a number
-                # is a guess (decision 2026-10-04)
+                # is a guess
                 collected += [g for g in split_guesses(line) if not _CERTAINTY_WORDS_RE.match(g)
                               and not (attribute not in (None, "age") and _NUMBER_ONLY_RE.match(g))]
                 if collected:
@@ -84,7 +84,7 @@ def parse_inference_response(response: str, attribute: Optional[str] = None) -> 
             # an empty Guess, or one that only announces the list ("Guess: My top 3 guesses for
             # the author's gender are:"): read the lines that follow. The official parser keeps
             # such an announcement as the guess (it is not empty, so no GPT-4o rewrite); reading
-            # on is ours (decision 2026-10-04), and when no line follows the announcement stays.
+            # on is ours, and when no line follows the announcement stays.
             if not raw or raw.endswith(":"):
                 awaiting_guess, collected = True, []
         elif low.startswith("certainty:"):
@@ -108,13 +108,12 @@ def extract_evidence_quotes(chain_text: str) -> List[str]:
 
 
 # -- the evaluation attack's answers (staab_multi) ---------------------------------------------
-# Moved from attack_eval/parsing.py (2026-10-04), unchanged: a port of TRACE-RPS
-# src/reddit/reddit.py::parse_answer. "Type:" lines are mapped to the asked attributes by MiniLM
+# A port of TRACE-RPS src/reddit/reddit.py::parse_answer. "Type:" lines are mapped to the asked attributes by MiniLM
 # embedding similarity (< 0.4 -> ignored), keys that are themselves attribute names open a
 # section, ";"-split guesses with "1." enumerations stripped. Its "long guess" block is a no-op in
 # the author code (the shortened guess is never written back) and is omitted. Checked against
 # parse_answer copied verbatim (python-Levenshtein, MiniLM): identical guess lists on all 45,976
-# (answer, attribute) pairs of the implicit result table.
+# (answer, attribute) pairs of the implicit evaluation.
 
 #: the sentence encoder parse_answer maps "Type:" lines with
 MINILM_PATH = Path(os.environ.get("FUSIT_MINILM", "models/all-MiniLM-L6-v2"))
@@ -155,7 +154,7 @@ def _closest_jw(text: str, targets: List[str]) -> str:
 
 #: An announcement in front of the guesses ("My top 3 guesses for age are", "Top 3 guesses for gender:"): Llama-2
 #: attackers write "Guess: My top 3 guesses are:" with the guesses on the next lines, or the whole list in one
-#: sentence, so the parser's first guess is that sentence (2026-10-08). eval.py's normalize_guesses splits only
+#: sentence, so the parser's first guess is that sentence. eval.py's normalize_guesses splits only
 #: "my top 3 guesses ...: a, b, c"; this covers its other spellings.
 _GUESS_ANNOUNCE = re.compile(
     r"^(?:based on [^,;]*,\s*)?(?:here (?:are|is)\s+)?(?:my|the|our)?\s*(?:top\s*\d*|\d+)?\s*(?:educated\s+)?"
@@ -174,13 +173,13 @@ def _clean_item(g: str) -> str:
 
 
 def clean_guesses(guesses: List[str]) -> List[str]:
-    """The parsed guesses without the format noise of non-Llama-3 attackers (2026-10-08): an announcement-only item
+    """The parsed guesses without the format noise of non-Llama-3 attackers: an announcement-only item
     is dropped, an announcement in front of a list ("... are A, B, or C") is cut off and the list split on commas
     and "or" / "and", list markers ("-", "1.", "1)") and a leading "or" / trailing "." are stripped. Guesses written
     as the prompt asks ("a; b; c") are returned unchanged.
 
-    2026-10-09 (Llama-2-13B writes "Guess: Based on my inference, I would guess ... Here are my top 3 guesses:" and
-    the guesses on the lines after it, 19-26% of its Synthetic answers): a preamble or disclaimer sentence ("Based
+    Llama-2-13B often writes "Guess: Based on my inference, I would guess ... Here are my top 3 guesses:" with the
+    guesses on the lines after it (19-26% of its Synthetic answers), so a preamble or disclaimer sentence ("Based
     on ...", "Please note ...", "Here are ...", "All three ...") is dropped when the list holds anything else; when
     it is the only item it is kept, since it may carry the guess itself."""
     out = _clean_guesses(guesses)
@@ -221,8 +220,7 @@ def parse_staab_multi(response: str, attributes: List[str]) -> Dict[str, Dict]:
         if not line.strip():
             continue
         # a numbered / bulleted guess with its reason ("1. High (60-150k USD): The author's ...") while a guess
-        # list is being read: the label is the guess (2026-10-09; split on ":" it used to become an unknown key
-        # and was lost)
+        # list is being read: the label is the guess (split on ":" it would become an unknown key and be lost)
         item = _LIST_ITEM.match(line)
         cur = res[type_key].get(sub_key)
         if item and sub_key == "guess" and isinstance(cur, list) and ":" in item.group(1):
@@ -277,8 +275,8 @@ def parse_staab_multi(response: str, attributes: List[str]) -> Dict[str, Dict]:
     return out
 
 
-# -- the fallback reading (decision A3-b) -------------------------------------------------------
-# Moved from verifier/parsing.py and verifier/lenient.py (2026-10-04), unchanged. TRACE-RPS repairs
+# -- the fallback reading ---------------------------------------------------------------------
+# TRACE-RPS repairs
 # answers its parser cannot read with a GPT format-fixing pass (src/reddit/normalize.py --fix,
 # accepted by a human); these experiments run local models only, and the local attacker does not
 # follow the answer-format rules reliably, so this reading takes the place of that pass, ONLY for
@@ -287,7 +285,7 @@ def parse_staab_multi(response: str, attributes: List[str]) -> Dict[str, Dict]:
 # when its Type names it on word boundaries (fusit key, prompt label, author key, Staab type
 # string -- "Type: language" does not match age), and its guesses are scored as usual. Answers
 # with no Type block for the attribute stay unread. It reads 0-1.9% of the pairs per result-table
-# row (the tables' "fallback-read").
+# row.
 
 _FIELD = re.compile(r"^\s*[-*•]?\s*(type|inference|guess(?:es)?|certainty|explanation|reason(?:ing)?|"
                     r"justification|note|confidence)\s*:\s*(.*)$", re.I)

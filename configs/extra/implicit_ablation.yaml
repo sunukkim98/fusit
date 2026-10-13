@@ -1,9 +1,3 @@
-description: >
-  X_priv component ablation on the implicit run (2026-10-05): NER, + V_att, + V_cot, + both (TRACE x DP-Fusion),
-  + V_cot split into words without the verifier, + random V_cot words / random document words at the
-  verifier's coverage (seeds 0-2), + Verifier (ours). Masked and DP-Fusion at the main table's alpha*beta.
-  Every condition was built by --decide; run on a copy of fusit_ab_sweep (scripts/reshard.py), whose
-  ner_only / ner_both / ner_att_vcot95 paraphrases at 0.01 and 0.1 are reused.
 extends: ../main/implicit.yaml
 run:
   xpriv_conditions: &abl [ner_only, ner_att, ner_cot, ner_both, ner_att_vcotwords,
@@ -12,3 +6,8 @@ run:
   alpha_beta: [0.01, 0.1]
   attack_conditions: [mask, dp_fusion]
   mask_conditions: *abl
+xpriv:
+  controls:
+    - {kind: words_all}
+    - {kind: random_doc, levels: [95], seeds: [0, 1, 2]}
+    - {kind: random_vcot, levels: [95], seeds: [0, 1, 2]}

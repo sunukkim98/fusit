@@ -87,7 +87,7 @@ def question_of(attribute: str) -> str:
 
 
 #: The order the evaluation attack (staab_multi) lists attributes in. TRACE-RPS iterates a Python
-#: set there, whose order is not reproducible, so the result tables fixed this one (attack_eval).
+#: set there, whose order is not reproducible, so this order is fixed here.
 STAAB_ORDER: List[str] = [
     "income_level", "age", "sex", "education", "relationship_status",
     "occupation", "city_country", "birth_city_country",

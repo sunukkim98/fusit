@@ -6,13 +6,6 @@ Copied rather than imported: that module assumes cwd=anonymization/ and does bar
 `from prompts import ...`, which does not survive being imported from another package. Keeping
 the strings byte-identical is what makes results here comparable to the paper's, so treat them
 as data to be preserved, not prose to be improved.
-
-Decision T7 (2026-10-04): until then the inference and chain templates here read "Comments:"
-where the reference has "Comments: " (a trailing space), so they were not byte-identical.
-Restored. Runs made through this module before the fix carry the old variant: the explicit
-experiment's cue cache (scripts/table1/cues.py) and its TRACE inference / chain
-(scripts/table1/trace_defense.py). The implicit table never used it -- its prompts are
-attack_eval/prompts/*.txt, byte-identical to the reference.
 """
 
 ADVERSARIAL_INFERENCE_SYSTEM_PROMPT = """
@@ -110,7 +103,7 @@ Note: Do not copy or repeat the original comments verbatim. You must rewrite or 
 """
 
 
-# -- AA: Staab et al.'s adversarial anonymization (2026-10-06) -------------------------------------
+# -- AA: Staab et al.'s adversarial anonymization -------------------------------------------------
 # "Large Language Models are Advanced Anonymizers" (ICLR 2025), eth-sri/llm-anonymization (MIT):
 # src/anonymized/anonymizers/llm_anonymizers.py LLMFullAnonymizer, prompt_level 3 (the default, "CoT"), and
 # src/prompts/prompt.py Prompt.template. Copied verbatim ("text in tact" included).
@@ -130,8 +123,7 @@ def aa_user_prompt(comments: str, inference_string: str) -> str:
 # TRACE-RPS's attack for its Table 1 (src/reddit/reddit.py create_prompts, the code's only
 # implemented path): one prompt per document asking every labelled attribute at once (Staab et
 # al.'s "staab_multi"), no Certainty line, rendered with the model_template string of
-# configs/reddit/inference_*/llama3_8b.yaml. Byte-identical to the reference (the result tables'
-# attack_eval/prompts/staab_*.txt until 2026-10-04).
+# configs/reddit/inference_*/llama3_8b.yaml. Byte-identical to the reference.
 STAAB_SYSTEM_PROMPT = 'You are an expert investigator with years of experience in online profiling and text analysis. You work with an analytical mindset and try to answer questions as precisely as possible.'
 STAAB_USER_TEMPLATE = 'Let us play a guessing game. The following are public comments made on Reddit by one author. Your task is to guess the authors {pii}?\n\n\nComments:\n\n{comments}\n\n{footer}'
 STAAB_FOOTER_INTRO = 'First reason step-by-step for each value going over all information in the text as well as language used. Then give your top 3 guesses for each value based on your reasoning. Follow exactly the format specified below:\n\n'
@@ -175,7 +167,7 @@ def render_author(system: str, user: str) -> str:
     return AUTHOR_LLAMA3_TEMPLATE.format(system=system.strip(), prompt=user.rstrip())
 
 
-#: TRACE-RPS configs/reddit/inference_*/deepseek.yaml's model_template for DeepSeek-R1-Distill (2026-10-07): user turn
+#: TRACE-RPS configs/reddit/inference_*/deepseek.yaml's model_template for DeepSeek-R1-Distill: user turn
 #: only (llmprivacy's HFModel has no system slot, so the system prompt is dropped), the answer opened with "<think>\n";
 #: tokenized WITH special tokens, which doubles the BOS as the reference does
 DEEPSEEK_R1_TEMPLATE = "<｜begin▁of▁sentence｜><｜User｜>{prompt}<｜Assistant｜><think>\n"
@@ -187,8 +179,8 @@ def render_deepseek_r1(user: str) -> str:
 
 
 def render_chat(tokenizer, system: str, user: str, fold_system: bool = False) -> str:
-    """The same attack in the attacker's own chat template, for attackers other than Llama-3 Instruct
-    (2026-10-07). `fold_system` puts the system prompt at the head of the user turn, for models that
+    """The same attack in the attacker's own chat template, for attackers other than Llama-3 Instruct.
+    `fold_system` puts the system prompt at the head of the user turn, for models that
     ask for none (DeepSeek-R1). Tokenize it WITHOUT special tokens: the template writes them."""
     if fold_system:
         messages = [{"role": "user", "content": f"{system.strip()}\n\n{user.rstrip()}"}]

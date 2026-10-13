@@ -1,4 +1,3 @@
-description: Robustness attack with Llama-2-7B-Chat (its own chat template; 4096-token context).
 extends: robust_attack_base.yaml
 run:
   attacker_model: models/Llama-2-7b-chat-hf

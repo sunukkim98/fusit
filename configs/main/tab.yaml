@@ -1,7 +1,3 @@
-description: >
-  Explicit run on TAB-ECHR (DP-Fusion's 100 documents; 2026-10-04): as implicit.yaml with gold NER
-  (decision X4), every attribute (X5), DP-Fusion also on gold NER alone (the DP-Fusion row), and the
-  original attacked (No Defense). Masks stand in for No-DPI (X10).
 extends: implicit.yaml
 run:
   dataset: tab
