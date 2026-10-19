@@ -23,7 +23,7 @@ Optionally, the refusal-inducing suffix of RPS (TRACE-RPS) can be appended to th
 
 The Python package is named `fusit`.
 
-## 🗂️ Repository Structure
+## Repository Structure
 ```
 ├── assets/              # Figures used in this README
 ├── configs/
@@ -44,7 +44,7 @@ The Python package is named `fusit`.
 └── pyproject.toml
 ```
 
-## ⚙️ Prerequisites
+## Prerequisites
 The following commands create a conda environment with pinned packages and install this repository
 in editable mode:
 
@@ -81,7 +81,7 @@ are loaded from the Hugging Face Hub on first use.
 | Evaluation attacker and utility judge | Llama-3.1-8B-Instruct |
 | NER | Presidio with `dslim/bert-base-NER` (gold annotations on TAB-ECHR) |
 
-## 📚 Datasets
+## Datasets
 All datasets used in the paper are included in `dataset/`.
 
 | Dataset | PII type | Texts | File |
@@ -99,7 +99,7 @@ Both implicit PII datasets are copied unmodified from TRACE-RPS. The TAB-ECHR sp
 (`dataset/tab_echr/echr_*.json`) are not needed for the experiments; `dataset/README.md` explains how
 to fetch them.
 
-## ♻️ Training and Evaluation
+## Training and Evaluation
 CuePick needs no training. Every experiment is one command, `python -m fusit.main`, driven by a
 config in `configs/`. A run is resumable: records are written per text, and finished stages are
 skipped when the same command is run again.
@@ -157,7 +157,7 @@ python -m fusit.main --config configs/main/implicit.yaml --dataset synthpai \
     --item-ids ThunderThistle --output out/test.jsonl
 ```
 
-## 📈 Experimental Results
+## Experimental Results
 The reported results in the paper are as follows. The best results among defense methods are in
 **bold**, and the second-best are <u>underlined</u>. In every setting, the inference model differs from
 the evaluation attacker; the main experiments use Llama-2-7B-Chat as the inference model and
@@ -218,7 +218,7 @@ original tokens that are protected, and utility is the mean of readability/10 an
 </p>
 <p align="center"><em>Privacy–utility comparison on Synthetic (left) and SynthPAI (right). Privacy axes are implicit privacy (100 − attribute inference accuracy) and explicit privacy (1 − ASR on TAB-ECHR); utility axes are readability, meaning preservation, SBERT similarity and hallucination-free rate, for CuePick, NER, TRACE, DP-Fusion and AA. Same as Figure 2 of the paper.</em></p>
 
-## 📌 Hyperparameters
+## Hyperparameters
 CuePick has three main hyperparameters. The configs in `configs/main/` hold the values used in the paper.
 
 * $\alpha\beta$: divergence bound of cue-suppressed decoding (`--alpha-beta`; 0.01 and 0.1). A smaller
@@ -248,7 +248,7 @@ The other settings are fixed: $m = 20$ random content words per text and attribu
 (`--verify-null`), Rényi order $\alpha = 2$, $\delta = 10^{-3}$, temperature 1.0, and a maximum
 generation length of $\lceil 1.5 \times |x| \rceil$ tokens.
 
-## 🔧 Detailed Options
+## Detailed Options
 Main options of `python -m fusit.main` (`python -m fusit.main --help` lists all of them). A config sets
 the defaults; options given on the command line override it.
 
@@ -269,5 +269,5 @@ the defaults; options given on the command line override it.
 | `--skip-attack` | stop before the attack (e.g. to run RPS and the attack in separate processes) | off |
 | `--device`, `--dtype` | device and precision of the models | `cuda:0`, `float16` |
 
-## 📝 Citation
+## Citation
 The citation will be added after the review process.
